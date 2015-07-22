@@ -1,0 +1,45 @@
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+  <title>Interactive Computer Graphics with WebGL: 1st assignment</title>
+
+  <script id="vertex-shader" type="x-shader/x-vertex">
+    attribute vec4 vPosition; 
+    uniform float angle;
+
+    void main() 
+    {
+      gl_PointSize = 5.0;
+      vec2 pos = vPosition.xy;
+      float theta = angle * sqrt(pos.x * pos.x + pos.y * pos.y);
+      pos.x = vPosition.x * cos(theta) - vPosition.y * sin(theta);
+      pos.y = vPosition.x * sin(theta) + vPosition.y * cos(theta);
+      gl_Position = vec4(pos.x, pos.y, vPosition.z, vPosition.w);
+    }
+  </script>
+
+  <script id="fragment-shader" type="x-shader/x-fragment">
+    precision mediump float; 
+    
+    void main() 
+    { 
+      gl_FragColor = vec4( 1.0, 0.0, 0.0, 1.0 ); 
+    }
+  </script>
+
+  <script type="text/javascript" src="../Common/webgl-utils.js"></script>
+  <script type="text/javascript" src="../Common/initShaders.js"></script>
+  <script type="text/javascript" src="../Common/MV.js"></script>
+  <script type="text/javascript" src="gasket1.js"></script>
+</head>
+
+<body>
+  <div>tesselation level 0<input id="tesselation_level" type="range" min="0" max="5" step="1" value="0"/>5</div>
+  <div>angle in degrees 0<input id="angle" type="range" min="0" max="360" step="1" value="0"/>360</div>
+  <canvas id="gl-canvas" width="512" height="512">
+    Oops ... your browser doesn't support the HTML5 canvas element
+  </canvas>
+</body>
+
+</html>
