@@ -1,9 +1,12 @@
 var gl;
 var verticies;
+var quad_verticies;
 var points;
 var numTimesToSubdivide = 0;
 var angle = 0;
 var angle_loc;
+var shape_index = 0;
+var show_frame = false;
 
 window.onload = function init() {
   var canvas = document.getElementById("gl-canvas");
@@ -19,6 +22,15 @@ window.onload = function init() {
     start,
     rotatePoint(start, radians(120)),
     rotatePoint(start, radians(240))
+  ];
+
+  quad_verticies = [
+    vec2(-0.5, -0.5),
+    vec2(-0.5, 0.5),
+    vec2(0.5, -0.5),
+    vec2(-0.5, 0.5),
+    vec2(0.5, 0.5),
+    vec2(0.5, -0.5)
   ];
 
   //
@@ -37,7 +49,7 @@ window.onload = function init() {
 
   var bufferId = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, bufferId);
-  gl.bufferData(gl.ARRAY_BUFFER, 8 * 1024 * 4, gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, 16 * 2048 * 4, gl.STATIC_DRAW);
 
   // Associate out shader variables with our data buffer
 
@@ -58,10 +70,32 @@ window.onload = function init() {
     angle = target.value;
     render();
   };
-};
+
+  var radios = document.getElementsByName("shape_type");
+  radios[0].onclick = function(event) {
+    shape_index = 0;
+    render();
+  }
+
+  radios[1].onclick = function(event) {
+    shape_index = 1; 
+    render(); 
+  }
+
+  document.getElementById("is_frame_visible").onchange = function(event) {
+      var target = event.target || event.srcElement;
+      show_frame = target.checked;
+      render();
+  };
+}
 
 function triangle(a, b, c) {
-  points.push(a, b, c);
+  if (show_frame) {
+    points.push(a, b, b, c, c, a);
+  } else {
+    points.push(a, b, c);
+  }
+
 }
 
 function divideTriangle(a, b, c, count) {
@@ -97,12 +131,20 @@ function rotatePoint(point, angle) {
 
 function render() {
   points = [];
-  divideTriangle(vertices[0], vertices[1], vertices[2],
+
+  if (shape_index == 0) {
+    divideTriangle(vertices[2], vertices[0], vertices[1], 
     numTimesToSubdivide);
+  } else if (shape_index == 1) {
+    divideTriangle(quad_verticies[0], quad_verticies[1], quad_verticies[2],
+    numTimesToSubdivide);
+    divideTriangle(quad_verticies[3], quad_verticies[4], quad_verticies[5],
+    numTimesToSubdivide);
+  }
 
   gl.uniform1f(angle_loc, radians(angle));
 
   gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(points));
   gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.drawArrays(gl.TRIANGLES, 0, points.length);
+  gl.drawArrays(show_frame ? gl.LINES : gl.TRIANGLES, 0, points.length);
 }

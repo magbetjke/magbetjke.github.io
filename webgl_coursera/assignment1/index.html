@@ -31,12 +31,20 @@
   <script type="text/javascript" src="../Common/webgl-utils.js"></script>
   <script type="text/javascript" src="../Common/initShaders.js"></script>
   <script type="text/javascript" src="../Common/MV.js"></script>
-  <script type="text/javascript" src="gasket1.js"></script>
+  <script type="text/javascript" src="code.js"></script>
 </head>
 
 <body>
-  <div>tesselation level 0<input id="tesselation_level" type="range" min="0" max="5" step="1" value="0"/>5</div>
-  <div>angle in degrees 0<input id="angle" type="range" min="0" max="360" step="1" value="0"/>360</div>
+  <div><h3>tesselation level:</h3> 0<input id="tesselation_level" type="range" min="0" max="5" step="1" value="0"/>5</div>
+  <div><h3>angle in degrees:</h3> 0<input id="angle" type="range" min="0" max="360" step="1" value="0"/>360</div>
+  <div>
+    <h3>shape:</h3>
+    Triangle <input type="radio" name="shape_type" value="triangle" checked/><br />
+    Square <input type="radio" name="shape_type" value="square" /><br />
+  </div>
+  <div>
+    <h3>show frame</h3> <input type="checkbox" id="is_frame_visible" value="flag"/>
+  </div>
   <canvas id="gl-canvas" width="512" height="512">
     Oops ... your browser doesn't support the HTML5 canvas element
   </canvas>
