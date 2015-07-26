@@ -1,0 +1,57 @@
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+  <title>Interactive Computer Graphics with WebGL: 2st assignment</title>
+
+  <script id="vertex-shader" type="x-shader/x-vertex">
+    attribute vec4 vPosition; 
+    attribute vec4 vColor;
+
+    varying vec4 fColor;
+
+    void main() 
+    {
+      gl_Position = vPosition;
+      fColor = vColor;
+    }
+  </script>
+
+  <script id="fragment-shader" type="x-shader/x-fragment">
+    precision mediump float; 
+
+    varying vec4 fColor;
+    
+    void main() 
+    { 
+      gl_FragColor = fColor; 
+    }
+  </script>
+
+  <script type="text/javascript" src="../Common/webgl-utils.js"></script>
+  <script type="text/javascript" src="../Common/initShaders.js"></script>
+  <script type="text/javascript" src="../Common/MV.js"></script>
+  <script type="text/javascript" src="code.js"></script>
+</head>
+
+<body>
+  <div><h3>color:</h3> 
+  	red:&nbsp;<input id="color_r" type="number" min="0" max="255" step="1" value="255"/>
+  	&nbsp;green:&nbsp;<input id="color_g" type="number" min="0" max="255" step="1" value="0"/>
+  	&nbsp;blue:&nbsp;<input id="color_b" type="number" min="0" max="255" step="1" value="0"/>
+  	&nbsp;alpha:&nbsp;<input id="color_a" type="number" min="0" max="255" step="1" value="255"/>
+  </div>
+  <div><h3>width:</h3> 
+  	<input id="line_width" type="number" min="1" max="7" step="1" value="1"/>
+  </div>
+  <div>
+  	<br/>
+  	<button id="clean_btn">clean</button>
+  </div>
+
+  <canvas id="gl-canvas" width="512" height="512">
+    Oops ... your browser doesn't support the HTML5 canvas element
+  </canvas>
+</body>
+
+</html>
