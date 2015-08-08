@@ -35,6 +35,38 @@
 </head>
 
 <body>
+  <canvas id="gl-canvas" width="512" height="512">
+    Oops ... your browser doesn't support the HTML5 canvas element
+  </canvas>
+  <div style="padding-bottom: 20px">
+    <select id="object_picker">
+      <option value="sphere">sphere</option>
+      <option value="cone">cone</option>
+      <option value="cylinder">cylinder</option>
+    </select>
+    <button id="add_object">Create</button>
+  </div>
+  <div id="object_props">
+    <div style="border: 1px solid black; width: 472px; padding: 20px" align="center">
+
+      <div align="right" style="width: 200px">
+        <div align="center" style="padding-bottom: 10px; font-weight: bold">COLOR</div>
+        <div>
+          red:&nbsp;<input id="color_r" type="range" min="0" max="255" step="1" value="0"/><br/>
+          green:&nbsp;<input id="color_g" type="range" align="right" min="0" max="255" step="1" value="0"/><br/>
+          blue:&nbsp;<input id="color_b" type="range" min="0" max="255" step="1" value="0"/>
+        </div>  
+        <div style="padding-top:10px">
+          rgb(<span id="color_r_value">0</span>,
+          <span id="color_g_value">0</span>,
+          <span id="color_b_value">0</span>)
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="object_props_placeholder" style="border: 1px solid black; width: 512px">
+    select an object or create one
+  </div>
 <!--
   <div><h3>color:</h3> 
   	red:&nbsp;<input id="color_r" type="number" min="0" max="255" step="1" value="255"/>
@@ -50,9 +82,7 @@
   	<button id="clean_btn">clean</button>
   </div>
 -->
-  <canvas id="gl-canvas" width="512" height="512">
-    Oops ... your browser doesn't support the HTML5 canvas element
-  </canvas>
+
 </body>
 
 </html>

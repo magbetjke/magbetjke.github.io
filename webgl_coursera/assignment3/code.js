@@ -4,7 +4,10 @@ var canvas;
 var arrayOfLines = [];
 var arrayOfLineWidths = [];
 var current_index = -1;
+
 const NUMS_PER_ENTITY = 6;
+
+var hasSelected = false;
 
 window.onload = function init() {
  canvas = document.getElementById("gl-canvas");
@@ -44,44 +47,97 @@ window.onload = function init() {
 
   render();
 
-  document.getElementById("line_width").max = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE)[1];
+ //  document.getElementById("line_width").max = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE)[1];
 
-  document.getElementById("clean_btn").onclick = function(event) {
-  	clear();
-  }
+ //  document.getElementById("clean_btn").onclick = function(event) {
+ //  	clear();
+ //  }
 
-  canvas.addEventListener("mousedown", function(event){
-  		mouse_pressed = true;
+ //  canvas.addEventListener("mousedown", function(event){
+ //  		mouse_pressed = true;
 
-  		++current_index;
-  		arrayOfLineWidths[current_index] = document.getElementById("line_width").value;
+ //  		++current_index;
+ //  		arrayOfLineWidths[current_index] = document.getElementById("line_width").value;
 
-  		event.preventDefault();
+ //  		event.preventDefault();
 
-	});
-  canvas.addEventListener("mouseup", function(event){
-    	mouse_pressed = false;
+	// });
+ //  canvas.addEventListener("mouseup", function(event){
+ //    	mouse_pressed = false;
 
-    	//++current_index;
+ //    	//++current_index;
 
-    	//event.preventDefault();
-	});
+ //    	//event.preventDefault();
+	// });
 
-  canvas.addEventListener("mouseout", function(event){
-  		mouse_pressed = false;
+ //  canvas.addEventListener("mouseout", function(event){
+ //  		mouse_pressed = false;
 
     	
-  });
-  canvas.addEventListener("mousemove", function(event){
-  		if (mouse_pressed)
-  		{
-  			addPoint(event.clientX, event.clientY);
-  			render();	
-  		}
+ //  });
+ //  canvas.addEventListener("mousemove", function(event){
+ //  		if (mouse_pressed)
+ //  		{
+ //  			addPoint(event.clientX, event.clientY);
+ //  			render();	
+ //  		}
 
-  		event.preventDefault();
+ //  		event.preventDefault();
   		
-	});
+	// });
+
+  document.getElementById("add_object").onclick = function(event) {
+    createObject(document.getElementById("object_picker").value);
+  };
+
+  document.getElementById("color_r").onchange = function(event) {
+    var target = event.target || event.srcElement;
+    var color = target.value;
+    document.getElementById("color_r_value").innerHTML = color;
+    updateSelectedObject();
+  };
+
+  document.getElementById("color_g").onchange = function(event) {
+    var target = event.target || event.srcElement;
+    var color = target.value;
+    document.getElementById("color_g_value").innerHTML = color;
+    updateSelectedObject();
+  };
+
+  document.getElementById("color_b").onchange = function(event) {
+    var target = event.target || event.srcElement;
+    var color = target.value;
+    document.getElementById("color_b_value").innerHTML = color;
+    updateSelectedObject();
+  };
+
+  setSelected(true);
+}
+
+function updateSelectedObject() {
+
+}
+
+function setSelected(value) {
+  hasSelected = value;
+  if (!hasSelected) {
+    document.getElementById("object_props").style.visibility = "hidden";
+    document.getElementById("object_props_placeholder").style.visibility = "visible";
+  } else {
+    document.getElementById("object_props").style.visibility = "visible";
+    document.getElementById("object_props_placeholder").style.visibility = "hidden";
+  }
+}
+
+function createObject(objectType) 
+{
+  if (objectType == "sphere") {
+    console.log("added sphere");
+  } else if (objectType == "cone") {
+    console.log("added cone");
+  } else if (objectType == "cylinder") {
+    console.log("added cylinder");
+  }
 }
 
 function addPoint(x, y)
@@ -117,15 +173,15 @@ function render()
   	gl.enable(gl.BLEND);
   	gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-	for (var i = 0; i != arrayOfLines.length; ++i) 
-	{
-		var line = arrayOfLines[i];
-		//console.log(JSON.stringify(line));
-	  	if (line.length <= NUMS_PER_ENTITY) //there is no line_strip of one vertex
-	  		break;
+	// for (var i = 0; i != arrayOfLines.length; ++i) 
+	// {
+	// 	var line = arrayOfLines[i];
+	// 	//console.log(JSON.stringify(line));
+	//   	if (line.length <= NUMS_PER_ENTITY) //there is no line_strip of one vertex
+	//   		break;
 
-	  	gl.lineWidth(arrayOfLineWidths[i]);
-	  	gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(line));
-	  	gl.drawArrays(gl.LINE_STRIP, 0, line.length / NUMS_PER_ENTITY);
-	}
+	//   	gl.lineWidth(arrayOfLineWidths[i]);
+	//   	gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(line));
+	//   	gl.drawArrays(gl.LINE_STRIP, 0, line.length / NUMS_PER_ENTITY);
+	// }
 }
