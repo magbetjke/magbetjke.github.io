@@ -5,15 +5,17 @@
   <title>Interactive Computer Graphics with WebGL: 3st assignment</title>
 
   <script id="vertex-shader" type="x-shader/x-vertex">
-    attribute vec4 vPosition; 
-    attribute vec4 vColor;
+    attribute vec4 vPosition;
 
+    uniform vec4 uColor;
+    uniform mat4 uTransform;
     varying vec4 fColor;
 
     void main() 
     {
-      gl_Position = vPosition;
-      fColor = vColor;
+      gl_PointSize = 5.0;
+      gl_Position = uTransform * vPosition;
+      fColor = uColor;
     }
   </script>
 
@@ -35,37 +37,92 @@
 </head>
 
 <body>
-  <canvas id="gl-canvas" width="512" height="512">
-    Oops ... your browser doesn't support the HTML5 canvas element
+
+<div id="object_props" style="float: right; width: 512px">
+    <!--color-->
+    <div style="border: 1px solid black; width: 300px; padding: 5px" align="center">
+        <div align="right" style="width: 200px">
+            <div align="center" style="padding-top: 2px; padding-bottom: 5px; font-weight: bold">COLOR</div>
+            <div>
+                red:&nbsp;<input id="color_r" type="range" min="0" max="255" step="1" value="0"/><br/>
+                green:&nbsp;<input id="color_g" type="range" min="0" max="255" step="1" value="0"/><br/>
+                blue:&nbsp;<input id="color_b" type="range" min="0" max="255" step="1" value="0"/>
+            </div>
+            <div style="padding-top:5px">
+                rgb(<span id="color_r_value">0</span>,
+                <span id="color_g_value">0</span>,
+                <span id="color_b_value">0</span>)
+            </div>
+        </div>
+    </div>
+
+    <!--position-->
+    <div style="border: 1px solid black; width: 300px; padding: 5px; margin-top: 5px" align="center">
+        <div align="right" style="width: 200px">
+            <div align="center" style="padding-top: 2px; padding-bottom: 5px; font-weight: bold">POSITION</div>
+            <div>
+                X:&nbsp;<input id="position_x" type="range" min="-10" max="10" step="0.5" value="0"/><br/>
+                Y:&nbsp;<input id="position_y" type="range" min="-10" max="10" step="0.5" value="0"/><br/>
+                Z:&nbsp;<input id="position_z" type="range" min="-10" max="10" step="0.5" value="0"/>
+            </div>
+            <div style="padding-top:5px">
+                xyz(<span id="position_x_value">0</span>,
+                <span id="position_y_value">0</span>,
+                <span id="position_z_value">0</span>)
+            </div>
+        </div>
+    </div>
+
+    <!--scale-->
+    <div style="border: 1px solid black; width: 300px; padding: 5px; margin-top: 5px" align="center">
+        <div align="right" style="width: 200px">
+            <div align="center" style="padding-top: 2px; padding-bottom: 5px; font-weight: bold">SCALE</div>
+            <div>
+                X:&nbsp;<input id="scale_x" type="range" min="0" max="10" step="0.1" value="1.0"/><br/>
+                Y:&nbsp;<input id="scale_y" type="range" min="0" max="10" step="0.1" value="1.0"/><br/>
+                Z:&nbsp;<input id="scale_z" type="range" min="0" max="10" step="0.1" value="1.0"/>
+            </div>
+            <div style="padding-top:5px">
+                xyz(<span id="scale_x_value">0</span>,
+                <span id="scale_y_value">0</span>,
+                <span id="scale_z_value">0</span>)
+            </div>
+        </div>
+    </div>
+
+    <!--rotation-->
+    <div style="border: 1px solid black; width: 300px; padding: 5px; margin-top: 5px" align="center">
+        <div align="right" style="width: 200px">
+            <div align="center" style="padding-top: 2px; padding-bottom: 5px; font-weight: bold">ROTATION</div>
+            <div>
+                X:&nbsp;<input id="rotation_x" type="range" min="0" max="360" step="0.1" value="1.0"/><br/>
+                Y:&nbsp;<input id="rotation_y" type="range" min="0" max="360" step="0.1" value="1.0"/><br/>
+                Z:&nbsp;<input id="rotation_z" type="range" min="0" max="360" step="0.1" value="1.0"/>
+            </div>
+            <div style="padding-top:5px">
+                xyz(<span id="rotation_x_value">0</span>,
+                <span id="rotation_y_value">0</span>,
+                <span id="rotation_z_value">0</span>)
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+  <canvas id="gl-canvas" width="512" height="512"">
+      Oops ... your browser doesn't support the HTML5 canvas element
   </canvas>
   <div style="padding-bottom: 20px">
-    <select id="object_picker">
-      <option value="sphere">sphere</option>
-      <option value="cone">cone</option>
-      <option value="cylinder">cylinder</option>
-    </select>
-    <button id="add_object">Create</button>
+      <select id="object_picker">
+          <option value="sphere">sphere</option>
+          <option value="cone">cone</option>
+          <option value="cylinder">cylinder</option>
+      </select>
+      <button id="add_object">Create</button>
   </div>
-  <div id="object_props">
-    <div style="border: 1px solid black; width: 472px; padding: 20px" align="center">
-
-      <div align="right" style="width: 200px">
-        <div align="center" style="padding-bottom: 10px; font-weight: bold">COLOR</div>
-        <div>
-          red:&nbsp;<input id="color_r" type="range" min="0" max="255" step="1" value="0"/><br/>
-          green:&nbsp;<input id="color_g" type="range" align="right" min="0" max="255" step="1" value="0"/><br/>
-          blue:&nbsp;<input id="color_b" type="range" min="0" max="255" step="1" value="0"/>
-        </div>  
-        <div style="padding-top:10px">
-          rgb(<span id="color_r_value">0</span>,
-          <span id="color_g_value">0</span>,
-          <span id="color_b_value">0</span>)
-        </div>
-      </div>
-    </div>
-  </div>
-  <div id="object_props_placeholder" style="border: 1px solid black; width: 512px">
-    select an object or create one
+  <div id="object_props_placeholder" style="border: 1px solid black; width: 512px;">
+      select an object or create one
   </div>
 <!--
   <div><h3>color:</h3> 
