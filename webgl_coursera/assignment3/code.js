@@ -14,13 +14,13 @@ var color_loc;
 var viewTransform;
 var projectionTransform;
 
-var hasSelected = false;
 var selectedObject;
 
 var uiColor = vec4(255, 255, 255, 255);
 var uiPosition = vec3(0, 0, 0);
 var uiScale = vec3(1, 1, 1);
 var uiRotation = vec3(0, 0, 0);
+var drawable = [];
 
 //Drawable class
 function Drawable(type, tessellationLevel) {
@@ -28,6 +28,8 @@ function Drawable(type, tessellationLevel) {
     this.tesselationLevel = tessellationLevel;
     this.color = [255, 255, 255, 255];
     this.outlineColor = [0.2, 0.2, 0.2, 1.0];
+    this.selectedOutlineColor = [0.5, 0.1, 0.1, 1.0];
+    this.selected = false;
     this.vertices = [];
     this.indexes = [];
     this.outlineIndexes = [];
@@ -36,16 +38,21 @@ function Drawable(type, tessellationLevel) {
     this.scale = [1.0, 1.0, 1.0];
     this.rotation = [0, 0, 0];
     this.position = [0, 0, 0];
+    this.originalWidth = 1;
+    this.originalHeight = 1;
+    this.boundingRect = []
 
     this.getMiddlePoint = function(a, b) {
         return mix(a, b, 0.5);
     }
 
     this.validate = function(point) {
-        var length = Math.sqrt(point[0] * point[0] + point[1] * point[1] + point[2] * point[2]);
-        point[0] /= length;
-        point[1] /= length;
-        point[2] /= length;
+        if (this.type == "sphere") {
+            var length = Math.sqrt(point[0] * point[0] + point[1] * point[1] + point[2] * point[2]);
+            point[0] /= length;
+            point[1] /= length;
+            point[2] /= length;
+        }
 
         return point;
     }
@@ -69,12 +76,6 @@ function Drawable(type, tessellationLevel) {
         } else {
 
             //bisect the sides
-
-//            var ab = mix(a, b, 0.5);
-//            var ac = mix(a, c, 0.5);
-//            var bc = mix(b, c, 0.5);
-//
-//
 
             var ab = this.getMiddlePoint(a, b);
             var ac = this.getMiddlePoint(a, c);
@@ -136,8 +137,68 @@ function Drawable(type, tessellationLevel) {
             this.divideTriangle(points[8], points[6], points[7], tessellationLevel);
             this.divideTriangle(points[9], points[8], points[1], tessellationLevel);
 
-            this.updateTransform();
+        } else if (this.type == "cone") {
+
+            var points = [];
+            points.push(vec3(0, 1, 0)); //top
+            points.push(vec3(0, 0, 0)); //bottom
+
+            var vertex_count = tessellationLevel + 3;
+            var angle = 0;
+            for (var i = 0; i != vertex_count; ++i) {
+                angle = (Math.PI * 2 / (vertex_count)) * i;
+
+                var x = 0.5 * Math.cos(angle);
+                var z = -0.5 * Math.sin(angle);
+
+                points.push(vec3(x, 0, z));
+            }
+
+            for (var i = 2; i < points.length - 1; ++i) {
+                this.addTriangle(points[i], points[0], points[i + 1]);
+                this.addTriangle(points[i], points[1], points[i + 1]);
+            }
+
+            this.addTriangle(points[points.length - 1], points[0], points[2]);
+            this.addTriangle(points[points.length - 1], points[1], points[2]);
+        } else if (this.type == "cylinder") {
+
+            var points = [];
+            points.push(vec3(0, 1, 0)); //top
+            points.push(vec3(0, 0, 0)); //bottom
+
+            var top_points = [];
+            var bottom_points = [];
+
+            var vertex_count = tessellationLevel + 3;
+            var angle = 0;
+            for (var i = 0; i != vertex_count; ++i) {
+                angle = (Math.PI * 2 / (vertex_count)) * i;
+
+                var x = 0.5 * Math.cos(angle);
+                var z = -0.5 * Math.sin(angle);
+
+                top_points.push(vec3(x, 1, z));
+                bottom_points.push(vec3(x, 0, z));
+            }
+
+            for (var i = 0; i < top_points.length - 1; ++i) {
+                this.addTriangle(top_points[i], top_points[i + 1], points[0]); //top triangle
+                this.addTriangle(bottom_points[i], bottom_points[i + 1], points[1]); //bottom triangle
+
+                this.addTriangle(top_points[i], top_points[i + 1], bottom_points[i + 1]); //quad part
+                this.addTriangle(bottom_points[i], bottom_points[i + 1], top_points[i]); //quad part
+            }
+
+
+            this.addTriangle(top_points[top_points.length - 1], top_points[0], points[0]); //top triangle
+            this.addTriangle(bottom_points[bottom_points.length - 1], bottom_points[0], points[1]); //bottom triangle
+
+            this.addTriangle(top_points[top_points.length - 1], top_points[0], bottom_points[0]); //quad part
+            this.addTriangle(bottom_points[bottom_points.length - 1], bottom_points[0], top_points[top_points.length - 1]); //quad part
         }
+
+        this.updateTransform();
     };
 
     this.updateTransform = function() {
@@ -148,33 +209,34 @@ function Drawable(type, tessellationLevel) {
         var translationMatrix = translate(this.position);
         var scaleMatrix = scalem(this.scale);
 
+        var new_width_half = this.originalWidth * this.scale[0] * 0.5;
+        var new_height_half = this.originalHeight * this.scale[1] * 0.5;
+        this.boundingRect = [
+            this.position[0] - new_width_half
+            , this.position[1] - new_height_half
+            , this.position[0] + new_width_half
+            , this.position[1] + new_height_half
+        ];
+
         this.transform = mult(mult(mult(mult(projectionTransform, viewTransform), translationMatrix), rotationMatrix), scaleMatrix);
     }
 
     this.draw = function() {
-
-        gl.enable(gl.DEPTH_TEST);
-//        console.log(this.outlineIndexes.length);
-//        console.log(JSON.stringify(this.vertices));
-//        console.log(JSON.stringify(this.outlineIndexes));
-
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
         gl.uniformMatrix4fv(transform_loc, false, flatten(this.transform));
 
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(this.vertices));
 
         //draw frame
-        gl.uniform4fv(color_loc, this.outlineColor);
+        gl.uniform4fv(color_loc, this.selected ? this.selectedOutlineColor : this.outlineColor);
 
-        gl.lineWidth(2);
+        gl.lineWidth(1);
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
         gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(this.outlineIndexes));
 
         gl.polygonOffset(0.0, 0.0);
-        gl.drawElements(gl.LINES, this.outlineIndexes.length * 2, gl.UNSIGNED_SHORT, 0);
+        gl.drawElements(gl.LINES, this.outlineIndexes.length, gl.UNSIGNED_SHORT, 0);
 
         //draw filled
         gl.uniform4fv(color_loc, this.color);
@@ -183,7 +245,7 @@ function Drawable(type, tessellationLevel) {
         gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(this.indexes));
 
         gl.polygonOffset(1.0, 1.0);
-        gl.drawElements(gl.TRIANGLES, this.indexes.length * 2, gl.UNSIGNED_SHORT, 0);
+        gl.drawElements(gl.TRIANGLES, this.indexes.length, gl.UNSIGNED_SHORT, 0);
     };
 
     this.initialize();
@@ -247,15 +309,14 @@ window.onload = function init() {
     //  	clear();
     //  }
 
-    //  canvas.addEventListener("mousedown", function(event){
-    //  		mouse_pressed = true;
+      canvas.addEventListener("mousedown", function(event){
+      		mouse_pressed = true;
 
-    //  		++current_index;
-    //  		arrayOfLineWidths[current_index] = document.getElementById("line_width").value;
+      		checkHit(event.clientX, event.clientY);
 
-    //  		event.preventDefault();
+      		event.preventDefault();
 
-    // });
+    });
     //  canvas.addEventListener("mouseup", function(event){
     //    	mouse_pressed = false;
 
@@ -386,12 +447,48 @@ window.onload = function init() {
 
 
     resetControls();
-    setSelected(true);
 
-    var sphere = new Drawable("sphere", 2);
-    selectedObject = sphere;
+    var cylinder = new Drawable("cylinder", 20);
+    cylinder.position = [5, 0, 5];
+    cylinder.scale = [3, 3, 3];
+    cylinder.updateTransform();
+    drawable.push(cylinder);
+
+    var cone = new Drawable("cone", 20);
+    cone.position = [-5, 0, -5];
+    cone.scale = [3, 3, 3];
+    cone.updateTransform();
+    drawable.push(cone);
+
+    var sphere = new Drawable("sphere", 3);
+    drawable.push(sphere);
+
+    var cone = new Drawable("cone", 20);
+    cone.position = [-5, -5, -5];
+    cone.scale = [3, 3, 3];
+    cone.updateTransform();
+    drawable.push(cone);
+
+    selectObject(sphere);
 
     render();
+}
+
+function checkHit(x, y) {
+    var posX = 2 * (x - canvas.getBoundingClientRect().left) / (canvas.width) - 1.0;
+    var posY = 1.0 - 2 * (y - canvas.getBoundingClientRect().top) / canvas.height;
+
+    posX *= 10;
+    posY *= 10;
+
+    console.log(posX);
+    for (var i = 0; i != drawable.length; ++i) {
+        var rect = drawable[i].boundingRect;
+        if (posX >= rect[0] && posX <= rect[2] && posY >= rect[1] && posY <= rect[3]) {
+            selectObject(drawable[i]);
+            break;
+        }
+    }
 }
 
 function resetControls() {
@@ -458,50 +555,47 @@ function updateSelectedObject() {
     }
 }
 
-function setSelected(value) {
-    hasSelected = value;
-    if (!hasSelected) {
-        document.getElementById("object_props").style.visibility = "hidden";
-        document.getElementById("object_props_placeholder").style.visibility = "visible";
-    } else {
+function selectObject(obj) {
+    if (selectedObject) {
+        selectedObject.selected = false;
+    }
+
+    selectedObject = obj;
+
+    if (selectedObject) {
+        selectedObject.selected = true;
+        resetControls();
+
         document.getElementById("object_props").style.visibility = "visible";
         document.getElementById("object_props_placeholder").style.visibility = "hidden";
+    } else {
+        document.getElementById("object_props").style.visibility = "hidden";
+        document.getElementById("object_props_placeholder").style.visibility = "visible";
     }
+
 }
 
 function createObject(objectType) {
     if (objectType == "sphere") {
-        console.log("added sphere");
+        var sphere = new Drawable("sphere", 3);
+        drawable.push(sphere);
+        selectObject(sphere);
+//        console.log("added sphere");
     } else if (objectType == "cone") {
-        console.log("added cone");
+        var cone = new Drawable("cone", 20);
+        drawable.push(cone);
+        selectObject(cone);
+//        console.log("added cone");
     } else if (objectType == "cylinder") {
-        console.log("added cylinder");
+//        console.log("added cylinder");
+        var cylinder = new Drawable("cylinder", 20);
+        drawable.push(cylinder);
+        selectObject(cylinder);
     }
-
-    resetControls();
-}
-
-function addPoint(x, y) {
-    var posX = 2 * (x - canvas.getBoundingClientRect().left) / (canvas.width) - 1.0;
-    var posY = 1.0 - 2 * (y - canvas.getBoundingClientRect().top) / canvas.height;
-    //points.push(posX, posY);
-
-    while (!arrayOfLines[current_index]) {
-        arrayOfLines.push([]);
-    }
-
-    var red = document.getElementById("color_r").value;
-    var green = document.getElementById("color_g").value;
-    var blue = document.getElementById("color_b").value;
-    var alpha = document.getElementById("color_a").value;
-
-    arrayOfLines[current_index].push(posX, posY, red / 255, green / 255, blue / 255, alpha / 255);
 }
 
 function clear() {
-    arrayOfLines = [];
-    arrayOfLineWidths = [];
-    current_index = -1;
+    drawable = [];
 //    render();
 }
 
@@ -510,7 +604,10 @@ function render() {
 
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.BLEND);
+    gl.enable(gl.DEPTH_TEST);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    selectedObject.draw();
+    for (var i = 0; i != drawable.length; ++i) {
+        drawable[i].draw();
+    }
 }
