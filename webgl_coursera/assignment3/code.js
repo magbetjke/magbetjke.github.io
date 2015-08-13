@@ -1,9 +1,5 @@
 var gl;
-var mouse_pressed = false;
 var canvas;
-var arrayOfLines = [];
-var arrayOfLineWidths = [];
-var current_index = -1;
 
 var vertexBufferId;
 var indexBufferId;
@@ -16,6 +12,7 @@ var projectionTransform;
 
 var selectedObject;
 
+var show_hits = false;
 var uiColor = vec4(255, 255, 255, 255);
 var uiPosition = vec3(0, 0, 0);
 var uiScale = vec3(1, 1, 1);
@@ -26,7 +23,7 @@ var drawable = [];
 function Drawable(type, tessellationLevel) {
     this.type = type;
     this.tesselationLevel = tessellationLevel;
-    this.color = [255, 255, 255, 255];
+    this.color = [1, 1, 1, 1];
     this.outlineColor = [0.2, 0.2, 0.2, 1.0];
     this.selectedOutlineColor = [0.5, 0.1, 0.1, 1.0];
     this.selected = false;
@@ -40,7 +37,7 @@ function Drawable(type, tessellationLevel) {
     this.position = [0, 0, 0];
     this.originalWidth = 1;
     this.originalHeight = 1;
-    this.boundingRect = []
+    this.bounds = [];
 
     this.getMiddlePoint = function(a, b) {
         return mix(a, b, 0.5);
@@ -49,9 +46,9 @@ function Drawable(type, tessellationLevel) {
     this.validate = function(point) {
         if (this.type == "sphere") {
             var length = Math.sqrt(point[0] * point[0] + point[1] * point[1] + point[2] * point[2]);
-            point[0] /= length;
-            point[1] /= length;
-            point[2] /= length;
+            point[0] /= length * 0.5;
+            point[1] /= length * 0.5;
+            point[2] /= length * 0.5;
         }
 
         return point;
@@ -98,20 +95,24 @@ function Drawable(type, tessellationLevel) {
 
             var points = [];
 
-            points.push(vec3(-1, t, 0));
-            points.push(vec3(1, t, 0));
-            points.push(vec3(-1, -t, 0));
-            points.push(vec3(1, -t, 0));
+            this.originalWidth = 4;
+            this.originalHeight = 4;
 
-            points.push(vec3(0, -1, t));
-            points.push(vec3(0, 1, t));
-            points.push(vec3(0, -1, -t));
-            points.push(vec3(0, 1, -t));
+            var c = 1.0;
+            points.push(vec3(-c, t, 0));
+            points.push(vec3(c, t, 0));
+            points.push(vec3(-c, -t, 0));
+            points.push(vec3(c, -t, 0));
 
-            points.push(vec3(t, 0, -1));
-            points.push(vec3(t, 0, 1));
-            points.push(vec3(-t, 0, -1));
-            points.push(vec3(-t, 0, 1));
+            points.push(vec3(0, -c, t));
+            points.push(vec3(0, c, t));
+            points.push(vec3(0, -c, -t));
+            points.push(vec3(0, c, -t));
+
+            points.push(vec3(t, 0, -c));
+            points.push(vec3(t, 0, c));
+            points.push(vec3(-t, 0, -c));
+            points.push(vec3(-t, 0, c));
 
             this.divideTriangle(points[0], points[11], points[5], tessellationLevel);
             this.divideTriangle(points[0], points[5], points[1], tessellationLevel);
@@ -140,8 +141,12 @@ function Drawable(type, tessellationLevel) {
         } else if (this.type == "cone") {
 
             var points = [];
-            points.push(vec3(0, 1, 0)); //top
-            points.push(vec3(0, 0, 0)); //bottom
+
+            var top = 0.5;
+            var bottom = -0.5;
+
+            points.push(vec3(0, top, 0)); //top
+            points.push(vec3(0, bottom, 0)); //bottom
 
             var vertex_count = tessellationLevel + 3;
             var angle = 0;
@@ -151,7 +156,7 @@ function Drawable(type, tessellationLevel) {
                 var x = 0.5 * Math.cos(angle);
                 var z = -0.5 * Math.sin(angle);
 
-                points.push(vec3(x, 0, z));
+                points.push(vec3(x, bottom, z));
             }
 
             for (var i = 2; i < points.length - 1; ++i) {
@@ -164,8 +169,12 @@ function Drawable(type, tessellationLevel) {
         } else if (this.type == "cylinder") {
 
             var points = [];
-            points.push(vec3(0, 1, 0)); //top
-            points.push(vec3(0, 0, 0)); //bottom
+
+            var top = 0.5;
+            var bottom = -0.5;
+
+            points.push(vec3(0, top, 0)); //top
+            points.push(vec3(0, bottom, 0)); //bottom
 
             var top_points = [];
             var bottom_points = [];
@@ -178,8 +187,8 @@ function Drawable(type, tessellationLevel) {
                 var x = 0.5 * Math.cos(angle);
                 var z = -0.5 * Math.sin(angle);
 
-                top_points.push(vec3(x, 1, z));
-                bottom_points.push(vec3(x, 0, z));
+                top_points.push(vec3(x, top, z));
+                bottom_points.push(vec3(x, bottom, z));
             }
 
             for (var i = 0; i < top_points.length - 1; ++i) {
@@ -211,11 +220,11 @@ function Drawable(type, tessellationLevel) {
 
         var new_width_half = this.originalWidth * this.scale[0] * 0.5;
         var new_height_half = this.originalHeight * this.scale[1] * 0.5;
-        this.boundingRect = [
+        this.bounds = [
             this.position[0] - new_width_half
             , this.position[1] - new_height_half
-            , this.position[0] + new_width_half
-            , this.position[1] + new_height_half
+            , parseFloat(this.position[0]) + new_width_half //oh, bother!
+            , parseFloat(this.position[1]) + new_height_half
         ];
 
         this.transform = mult(mult(mult(mult(projectionTransform, viewTransform), translationMatrix), rotationMatrix), scaleMatrix);
@@ -244,13 +253,63 @@ function Drawable(type, tessellationLevel) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
         gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(this.indexes));
 
-        gl.polygonOffset(1.0, 1.0);
+        gl.polygonOffset(1.0, 2.0);
         gl.drawElements(gl.TRIANGLES, this.indexes.length, gl.UNSIGNED_SHORT, 0);
+
+        //draw hit zone
+        if (show_hits) {
+            gl.disable(gl.DEPTH_TEST);
+
+            gl.uniform4fv(color_loc, [0.0, 0.3, 0.4, 0.3]);
+            gl.uniformMatrix4fv(transform_loc, false, flatten(mult(projectionTransform, viewTransform)));
+
+            var bounds = [
+                vec3(this.bounds[0], this.bounds[1], 0),
+                vec3(this.bounds[0], this.bounds[3], 0),
+                vec3(this.bounds[2], this.bounds[3], 0),
+                vec3(this.bounds[2], this.bounds[1], 0)
+
+            ];
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
+            gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(bounds));
+
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+            gl.enable(gl.DEPTH_TEST);
+        }
+
     };
 
     this.initialize();
 }
 //===
+
+function setProjectionMode(projection) {
+    console.log(projection);
+
+    if (projection == "perspective") {
+        viewTransform = lookAt(
+            vec3(0.0, 0.0, 20.0) //eye
+            ,vec3(0.0, 0.0, 0.0) //at
+            ,vec3(0.0, 1.0, 0.0) //up
+        );
+
+        console.log("yo");
+        projectionTransform = perspective(60, 1, 10, -50);
+    } else {
+        viewTransform = lookAt(
+            vec3(0.0, 0.0, 1.0) //eye
+            ,vec3(0.0, 0.0, 0.0) //at
+            ,vec3(0.0, 1.0, 0.0) //up
+        );
+
+        projectionTransform = ortho(-10.0, 10.0, -10.0, 10.0, 10.0, -10.0);
+    }
+
+    for (var i = 0; i != drawable.length; ++i) {
+        drawable[i].updateTransform();
+    }
+}
 
 window.onload = function init() {
     canvas = document.getElementById("gl-canvas");
@@ -266,13 +325,7 @@ window.onload = function init() {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0.98, 0.98, 0.98, 1.0);
 
-    viewTransform = lookAt(
-                        vec3(0.0, 0.0, 1.0) //eye
-                        ,vec3(0.0, 0.0, 0.0) //at
-                        ,vec3(0.0, 1.0, 0.0) //up
-    );
-
-    projectionTransform = ortho(-10.0, 10.0, -10.0, 10.0, 10.0, -10.0);
+    setProjectionMode("orthographic");
 
     //  Load shaders and initialize attribute buffers
 
@@ -317,32 +370,16 @@ window.onload = function init() {
       		event.preventDefault();
 
     });
-    //  canvas.addEventListener("mouseup", function(event){
-    //    	mouse_pressed = false;
-
-    //    	//++current_index;
-
-    //    	//event.preventDefault();
-    // });
-
-    //  canvas.addEventListener("mouseout", function(event){
-    //  		mouse_pressed = false;
-
-
-    //  });
-    //  canvas.addEventListener("mousemove", function(event){
-    //  		if (mouse_pressed)
-    //  		{
-    //  			addPoint(event.clientX, event.clientY);
-    //  			render();
-    //  		}
-
-    //  		event.preventDefault();
-
-    // });
 
     document.getElementById("add_object").onclick = function (event) {
         createObject(document.getElementById("object_picker").value);
+    };
+
+    document.getElementById("projection_type").onchange = function (event) {
+        var target = event.target || event.srcElement;
+        var projection = target.value;
+
+        setProjectionMode(projection);
     };
 
     //color controls
@@ -445,26 +482,28 @@ window.onload = function init() {
         updateSelectedObject();
     };
 
+    document.getElementById("are_hit_zones_visible").onchange = function(event) {
+        var target = event.target || event.srcElement;
+        show_hits = target.checked;
+        render();
+    };
 
-    resetControls();
+    resetControls(null);
 
     var cylinder = new Drawable("cylinder", 20);
-    cylinder.position = [5, 0, 5];
+    cylinder.position = [0, 5, 0];
     cylinder.scale = [3, 3, 3];
     cylinder.updateTransform();
     drawable.push(cylinder);
 
-    var cone = new Drawable("cone", 20);
-    cone.position = [-5, 0, -5];
-    cone.scale = [3, 3, 3];
-    cone.updateTransform();
-    drawable.push(cone);
-
-    var sphere = new Drawable("sphere", 3);
+    var sphere = new Drawable("sphere", 2);
+    sphere.scale = [1, 1, 1];
+    sphere.position = [-5, -5, 0];
+    sphere.updateTransform();
     drawable.push(sphere);
 
     var cone = new Drawable("cone", 20);
-    cone.position = [-5, -5, -5];
+    cone.position = [5, -5, -5];
     cone.scale = [3, 3, 3];
     cone.updateTransform();
     drawable.push(cone);
@@ -483,7 +522,7 @@ function checkHit(x, y) {
 
     console.log(posX);
     for (var i = 0; i != drawable.length; ++i) {
-        var rect = drawable[i].boundingRect;
+        var rect = drawable[i].bounds;
         if (posX >= rect[0] && posX <= rect[2] && posY >= rect[1] && posY <= rect[3]) {
             selectObject(drawable[i]);
             break;
@@ -491,50 +530,57 @@ function checkHit(x, y) {
     }
 }
 
-function resetControls() {
+function resetControls(selected) {
     //color
-    uiColor = vec4(255, 255, 255, 255);
-    document.getElementById("color_r").value = 255;
-    document.getElementById("color_r_value").innerHTML = "255";
+    if (selected) {
+        uiColor[0] = selected.color[0] * 255.0;
+        uiColor[1] = selected.color[1] * 255.0;
+        uiColor[2] = selected.color[2] * 255.0;
+        uiColor[3] = selected.color[3] * 255.0;
+    } else {
+        uiColor = vec4(255, 255, 255, 255);
+    }
+    document.getElementById("color_r").value = uiColor[0];
+    document.getElementById("color_r_value").innerHTML = uiColor[0];
 
-    document.getElementById("color_g").value = 255;
-    document.getElementById("color_b_value").innerHTML = "255";
+    document.getElementById("color_g").value = uiColor[1];
+    document.getElementById("color_g_value").innerHTML = uiColor[1];
 
-    document.getElementById("color_b").value = 255;
-    document.getElementById("color_b_value").innerHTML = "255";
+    document.getElementById("color_b").value = uiColor[2];
+    document.getElementById("color_b_value").innerHTML = uiColor[2];
 
     //position
-    uiPosition = vec3(0, 0, 0);
-    document.getElementById("position_x").value = 0;
-    document.getElementById("position_x_value").innerHTML = "0";
+    uiPosition = selected ? selected.position : vec3(0, 0, 0);
+    document.getElementById("position_x").value = selected ? selected.position[0] : 0;
+    document.getElementById("position_x_value").innerHTML = selected ? "" + selected.position[0] :"0";
 
-    document.getElementById("position_y").value = 0;
-    document.getElementById("position_y_value").innerHTML = "0";
+    document.getElementById("position_y").value = selected ? selected.position[1] : 0;
+    document.getElementById("position_y_value").innerHTML = selected ? "" + selected.position[1] :"0";
 
-    document.getElementById("position_z").value = 0;
-    document.getElementById("position_z_value").innerHTML = "0";
+    document.getElementById("position_z").value = selected ? selected.position[2] : 0;
+    document.getElementById("position_z_value").innerHTML = selected ? "" + selected.position[2] :"0";
 
     //scale
-    uiScale = vec3(1, 1, 1);
-    document.getElementById("scale_x").value = 0;
-    document.getElementById("scale_x_value").innerHTML = "1";
+    uiScale = selected ? selected.scale : vec3(1, 1, 1);
+    document.getElementById("scale_x").value = selected ? selected.scale[0] : 1;
+    document.getElementById("scale_x_value").innerHTML = selected ? "" + selected.scale[0] : "1";
 
-    document.getElementById("scale_y").value = 0;
-    document.getElementById("scale_y_value").innerHTML = "1";
+    document.getElementById("scale_y").value = selected ? selected.scale[1] : 1;
+    document.getElementById("scale_y_value").innerHTML = selected ? "" + selected.scale[1] : "1";
 
-    document.getElementById("scale_z").value = 0;
-    document.getElementById("scale_z_value").innerHTML = "1";
+    document.getElementById("scale_z").value = selected ? selected.scale[2] : 1;
+    document.getElementById("scale_z_value").innerHTML = selected ? "" + selected.scale[2] : "1";
 
     //rotation
-    uiRotation = vec3(0, 0, 0);
-    document.getElementById("rotation_x").value = 0;
-    document.getElementById("rotation_x_value").innerHTML = "0";
+    uiRotation = selected ? selected.rotation : vec3(0, 0, 0);
+    document.getElementById("rotation_x").value = selected ? selected.rotation[0] : 0;
+    document.getElementById("rotation_x_value").innerHTML = selected ? "" + selected.rotation[0] : "0";
 
-    document.getElementById("rotation_y").value = 0;
-    document.getElementById("rotation_y_value").innerHTML = "0";
+    document.getElementById("rotation_y").value = selected ? selected.rotation[1] : 0;
+    document.getElementById("rotation_y_value").innerHTML = selected ? "" + selected.rotation[1] : "0";
 
-    document.getElementById("rotation_z").value = 0;
-    document.getElementById("rotation_z_value").innerHTML = "0";
+    document.getElementById("rotation_z").value = selected ? selected.rotation[2] : 0;
+    document.getElementById("rotation_z_value").innerHTML = selected ? "" + selected.rotation[2] : "0";
 }
 
 function updateSelectedObject() {
@@ -564,31 +610,30 @@ function selectObject(obj) {
 
     if (selectedObject) {
         selectedObject.selected = true;
-        resetControls();
-
-        document.getElementById("object_props").style.visibility = "visible";
-        document.getElementById("object_props_placeholder").style.visibility = "hidden";
-    } else {
-        document.getElementById("object_props").style.visibility = "hidden";
-        document.getElementById("object_props_placeholder").style.visibility = "visible";
     }
 
+    resetControls(obj);
 }
 
 function createObject(objectType) {
     if (objectType == "sphere") {
-        var sphere = new Drawable("sphere", 3);
+        var sphere = new Drawable("sphere", 2);
+        sphere.updateTransform();
         drawable.push(sphere);
         selectObject(sphere);
 //        console.log("added sphere");
     } else if (objectType == "cone") {
         var cone = new Drawable("cone", 20);
+        cone.scale = [3, 3, 3];
+        cone.updateTransform();
         drawable.push(cone);
         selectObject(cone);
 //        console.log("added cone");
     } else if (objectType == "cylinder") {
 //        console.log("added cylinder");
         var cylinder = new Drawable("cylinder", 20);
+        cylinder.scale = [3, 3, 3];
+        cylinder.updateTransform();
         drawable.push(cylinder);
         selectObject(cylinder);
     }

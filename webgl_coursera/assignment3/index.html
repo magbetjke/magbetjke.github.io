@@ -37,7 +37,9 @@
 </head>
 
 <body>
-
+<div id="object_props_placeholder" style="border: solid 1px; width: 822px; margin-bottom: 5px; padding: 5px" align="center">
+    Use your mouse to select an object on the scene. Button "Create" adds an object from dropdown menu to the scene.
+</div>
 <div id="object_props" style="float: left; width: 320px">
     <!--color-->
     <div style="border: 1px solid black; width: 300px; padding: 5px" align="center">
@@ -110,20 +112,27 @@
 </div>
 
 
-  <canvas id="gl-canvas" width="512" height="512"">
+  <canvas id="gl-canvas" width="512" height="512">
       Oops ... your browser doesn't support the HTML5 canvas element
   </canvas>
-  <div style="padding-bottom: 20px">
+  <div style="padding-bottom: 5px">
       <select id="object_picker">
           <option value="sphere">sphere</option>
           <option value="cone">cone</option>
           <option value="cylinder">cylinder</option>
       </select>
       <button id="add_object">Create</button>
+
   </div>
-  <div id="object_props_placeholder" style="border: 1px solid black; width: 512px;">
-      select an object or create one
-  </div>
+    <div>show hit zones<input type="checkbox" id="are_hit_zones_visible" value="flag"/></div>
+    <div id="projection_block">
+        Projection mode:
+        <select id="projection_type">
+            <option value="orthographic">orthographic</option>
+            <option value="perspective">perspective</option>
+        </select>
+    </div>
+
 <!--
   <div><h3>color:</h3> 
   	red:&nbsp;<input id="color_r" type="number" min="0" max="255" step="1" value="255"/>
