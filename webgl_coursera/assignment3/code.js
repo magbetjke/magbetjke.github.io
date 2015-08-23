@@ -38,6 +38,11 @@ function Drawable(type, tessellationLevel) {
     this.originalWidth = 1;
     this.originalHeight = 1;
     this.bounds = [];
+    this.aabb = [];
+    this.currentAABB = [];
+    this.aabbIndecies = new Uint16Array([
+        0, 1, 3, 2, 0, 4, 5, 1, 3, 7, 5, 4, 6, 7, 3, 2, 6
+    ]);
 
     this.getMiddlePoint = function(a, b) {
         return mix(a, b, 0.5);
@@ -138,6 +143,8 @@ function Drawable(type, tessellationLevel) {
             this.divideTriangle(points[8], points[6], points[7], tessellationLevel);
             this.divideTriangle(points[9], points[8], points[1], tessellationLevel);
 
+            this.aabb = makeAABB(4, 4, 4, 0, 0, 0);
+
         } else if (this.type == "cone") {
 
             var points = [];
@@ -166,6 +173,8 @@ function Drawable(type, tessellationLevel) {
 
             this.addTriangle(points[points.length - 1], points[0], points[2]);
             this.addTriangle(points[points.length - 1], points[1], points[2]);
+
+            this.aabb = makeAABB(1, 1, 1, 0, 0, 0);
         } else if (this.type == "cylinder") {
 
             var points = [];
@@ -205,9 +214,13 @@ function Drawable(type, tessellationLevel) {
 
             this.addTriangle(top_points[top_points.length - 1], top_points[0], bottom_points[0]); //quad part
             this.addTriangle(bottom_points[bottom_points.length - 1], bottom_points[0], top_points[top_points.length - 1]); //quad part
+
+            this.aabb = makeAABB(1, 1, 1, 0, 0, 0);
         }
 
         this.updateTransform();
+
+
     };
 
     this.updateTransform = function() {
@@ -227,7 +240,56 @@ function Drawable(type, tessellationLevel) {
             , parseFloat(this.position[1]) + new_height_half
         ];
 
-        this.transform = mult(mult(mult(mult(projectionTransform, viewTransform), translationMatrix), rotationMatrix), scaleMatrix);
+
+
+        var modelView = mult(mult(mult(viewTransform, translationMatrix), rotationMatrix), scaleMatrix);
+        this.transform = mult(projectionTransform, modelView);
+
+        //recalculation of aabb
+        var size = this.aabb.length;
+        var transformedAABB = [];
+        for (var i = 0; i != size; ++i) {
+            transformedAABB.push(multVec4ByMat4(vec4(this.aabb[i][0], this.aabb[i][1], this.aabb[i][2], 1.0), modelView));
+        }
+
+        var minX = transformedAABB[0][0];
+        var minY = transformedAABB[0][1];
+        var minZ = transformedAABB[0][2];
+        var maxX = transformedAABB[0][0];
+        var maxY = transformedAABB[0][1];
+        var maxZ = transformedAABB[0][2];
+
+        for (var i = 1; i != size; ++i) {
+
+            if (minX > transformedAABB[i][0]) {
+                minX = transformedAABB[i][0];
+            } else if (maxX < transformedAABB[i][0]) {
+                maxX = transformedAABB[i][0];
+            }
+
+            if (minY > transformedAABB[i][1]) {
+                minY = transformedAABB[i][1];
+            } else if (maxY < transformedAABB[i][1]) {
+                maxY = transformedAABB[i][1];
+            }
+
+            if (minZ > transformedAABB[i][2]) {
+                minZ = transformedAABB[i][2];
+            } else if (maxZ < transformedAABB[i][2]) {
+                maxZ = transformedAABB[i][2];
+            }
+        }
+
+        this.currentAABB[0] = vec3(minX, minY, maxZ);
+        this.currentAABB[1] = vec3(minX, maxY, maxZ);
+        this.currentAABB[2] = vec3(maxX, minY, maxZ);
+        this.currentAABB[3] = vec3(maxX, maxY, maxZ);
+        this.currentAABB[4] = vec3(minX, minY, minZ);
+        this.currentAABB[5] = vec3(minX, maxY, minZ);
+        this.currentAABB[6] = vec3(maxX, minY, minZ);
+        this.currentAABB[7] = vec3(maxX, maxY, minZ);
+
+        console.log(JSON.stringify(this.currentAABB));
     }
 
     this.draw = function() {
@@ -257,7 +319,7 @@ function Drawable(type, tessellationLevel) {
         gl.drawElements(gl.TRIANGLES, this.indexes.length, gl.UNSIGNED_SHORT, 0);
 
         //draw hit zone
-        if (show_hits) {
+/*        if (show_hits) {
             gl.disable(gl.DEPTH_TEST);
 
             gl.uniform4fv(color_loc, [0.0, 0.3, 0.4, 0.3]);
@@ -276,6 +338,20 @@ function Drawable(type, tessellationLevel) {
 
             gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
             gl.enable(gl.DEPTH_TEST);
+        }*/
+
+        if (show_hits) {
+            gl.lineWidth(2);
+            gl.uniform4fv(color_loc, [0.0, 0.8, 0.2, 0.8]);
+            gl.uniformMatrix4fv(transform_loc, false, flatten(projectionTransform));
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
+            gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(this.currentAABB));
+
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
+            gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, this.aabbIndecies);
+
+            gl.drawElements(gl.LINE_STRIP, this.aabbIndecies.length, gl.UNSIGNED_SHORT, 0);
         }
 
     };
@@ -283,6 +359,33 @@ function Drawable(type, tessellationLevel) {
     this.initialize();
 }
 //===
+
+function multVec4ByMat4(v, m) {
+    var result = [];
+    for ( var i = 0; i < v.length; ++i ) {
+        var sum = 0.0;
+        for ( var j = 0; j < m.length; ++j ) {
+            sum += v[j] * m[i][j];
+        }
+        result.push(sum);
+    }
+
+    return result;
+}
+
+
+function makeAABB(width, height, depth, centerX, centerY, centerZ) {
+    return [
+        vec3(centerX - width * 0.5, centerY - height * 0.5, centerZ + depth * 0.5)
+        , vec3(centerX - width * 0.5, centerY + height * 0.5, centerZ + depth * 0.5)
+        , vec3(centerX + width * 0.5, centerY - height * 0.5, centerZ + depth * 0.5)
+        , vec3(centerX + width * 0.5, centerY + height * 0.5, centerZ + depth * 0.5)
+        , vec3(centerX - width * 0.5, centerY - height * 0.5, centerZ - depth * 0.5)
+        , vec3(centerX - width * 0.5, centerY + height * 0.5, centerZ - depth * 0.5)
+        , vec3(centerX + width * 0.5, centerY - height * 0.5, centerZ - depth * 0.5)
+        , vec3(centerX + width * 0.5, centerY + height * 0.5, centerZ - depth * 0.5)
+    ];
+}
 
 function setProjectionMode(projection) {
     console.log(projection);
