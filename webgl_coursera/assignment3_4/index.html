@@ -6,16 +6,27 @@
 
   <script id="vertex-shader" type="x-shader/x-vertex">
     attribute vec4 vPosition;
+    attribute vec4 vNormal;
 
     uniform vec4 uColor;
+    uniform mat4 uProjection;
     uniform mat4 uTransform;
+    uniform vec4 lightPosition;
+    uniform vec4 uAmbient;
+    uniform vec4 uDiffuse;
+    uniform vec4 uSpecular;
+    uniform float uShininess;
+
     varying vec4 fColor;
 
     void main() 
     {
       gl_PointSize = 5.0;
-      gl_Position = uTransform * vPosition;
-      fColor = uColor;
+      vec4 worldPosition = uTransform * (vPosition);
+      float product = dot(worldPosition - lightPosition, vNormal);
+      gl_Position = uProjection * worldPosition;
+      fColor = product > 0.0 ? vec4(0.0, 0.0, 0.0, 1.0) : uColor;
+      //fColor = uColor;
     }
   </script>
 

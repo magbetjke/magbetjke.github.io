@@ -2,13 +2,22 @@ var gl;
 var canvas;
 
 var vertexBufferId;
+var normalsBufferId;
 var indexBufferId;
 
+var projection_loc;
 var transform_loc;
 var color_loc;
+var ambient_loc;
+var diffuse_loc;
+var specular_loc;
+var shininess_loc;
+var lightpos_loc;
 
 var viewTransform;
 var projectionTransform;
+var currentProjection;
+var arrayOfLights =[];
 
 var selectedObject;
 
@@ -19,6 +28,13 @@ var uiScale = vec3(1, 1, 1);
 var uiRotation = vec3(0, 0, 0);
 var drawable = [];
 
+function LightSource(position, ambient, diffuse, specular) {
+    this.position = position;
+    this.ambient = ambient;
+    this.diffuse = diffuse;
+    this.specular = specular;
+}
+
 //Drawable class
 function Drawable(type, tessellationLevel) {
     this.type = type;
@@ -28,6 +44,7 @@ function Drawable(type, tessellationLevel) {
     this.selectedOutlineColor = [0.5, 0.1, 0.1, 1.0];
     this.selected = false;
     this.vertices = [];
+    this.normals = [];
     this.indexes = [];
     this.outlineIndexes = [];
     this.currentIndex = 0;
@@ -43,6 +60,12 @@ function Drawable(type, tessellationLevel) {
     this.aabbIndecies = new Uint16Array([
         0, 1, 3, 2, 0, 4, 5, 1, 3, 7, 5, 4, 6, 7, 3, 2, 6
     ]);
+
+    //material properties
+    this.ambient = vec4(1.0, 0.0, 1.0, 1.0);
+    this.diffuse = vec4(1.0, 0.8, 0.0, 1.0);
+    this.specular = vec4(1.0, 0.8, 0.0, 1.0);
+    this.shininess = 100.0;
 
     this.getMiddlePoint = function(a, b) {
         return mix(a, b, 0.5);
@@ -61,7 +84,15 @@ function Drawable(type, tessellationLevel) {
 
     this.addTriangle = function (a, b, c) {
 
-        this.vertices.push(this.validate(a), this.validate(b), this.validate(c));
+        a = this.validate(a);
+        b = this.validate(b);
+        c = this.validate(c);
+        var normal = normalize(cross(subtract(c, a), subtract(b, a)));
+
+        this.vertices.push(a, b, c);
+        this.normals.push(normal);
+        this.normals.push(normal);
+        this.normals.push(normal);
         this.outlineIndexes.push(
             this.currentIndex, this.currentIndex + 1,
             this.currentIndex + 1, this.currentIndex + 2,
@@ -74,7 +105,7 @@ function Drawable(type, tessellationLevel) {
     this.divideTriangle = function(a, b, c, count) {
         // check for end of recursion
         if (count == 0) {
-            this.addTriangle(a, b, c);
+            this.addTriangle(a, c, b);
         } else {
 
             //bisect the sides
@@ -167,12 +198,12 @@ function Drawable(type, tessellationLevel) {
             }
 
             for (var i = 2; i < points.length - 1; ++i) {
-                this.addTriangle(points[i], points[0], points[i + 1]);
-                this.addTriangle(points[i], points[1], points[i + 1]);
+                this.addTriangle(points[i], points[i + 1], points[0]);
+                this.addTriangle(points[i], points[i + 1], points[1]);
             }
 
-            this.addTriangle(points[points.length - 1], points[0], points[2]);
-            this.addTriangle(points[points.length - 1], points[1], points[2]);
+            this.addTriangle(points[points.length - 1], points[2], points[0]);
+            this.addTriangle(points[points.length - 1], points[2], points[1]);
 
             this.aabb = makeAABB(1, 1, 1, 0, 0, 0);
         } else if (this.type == "cylinder") {
@@ -201,19 +232,19 @@ function Drawable(type, tessellationLevel) {
             }
 
             for (var i = 0; i < top_points.length - 1; ++i) {
-                this.addTriangle(top_points[i], top_points[i + 1], points[0]); //top triangle
+                this.addTriangle(top_points[i], points[0], top_points[i + 1]); //top triangle
                 this.addTriangle(bottom_points[i], bottom_points[i + 1], points[1]); //bottom triangle
 
                 this.addTriangle(top_points[i], top_points[i + 1], bottom_points[i + 1]); //quad part
-                this.addTriangle(bottom_points[i], bottom_points[i + 1], top_points[i]); //quad part
+                this.addTriangle(bottom_points[i], top_points[i], bottom_points[i + 1]); //quad part
             }
 
 
-            this.addTriangle(top_points[top_points.length - 1], top_points[0], points[0]); //top triangle
+            this.addTriangle(top_points[top_points.length - 1], points[0], top_points[0]); //top triangle
             this.addTriangle(bottom_points[bottom_points.length - 1], bottom_points[0], points[1]); //bottom triangle
 
             this.addTriangle(top_points[top_points.length - 1], top_points[0], bottom_points[0]); //quad part
-            this.addTriangle(bottom_points[bottom_points.length - 1], bottom_points[0], top_points[top_points.length - 1]); //quad part
+            this.addTriangle(bottom_points[bottom_points.length - 1], top_points[top_points.length - 1], bottom_points[0]); //quad part
 
             this.aabb = makeAABB(1, 1, 1, 0, 0, 0);
         }
@@ -241,9 +272,9 @@ function Drawable(type, tessellationLevel) {
         ];
 
 
-
         var modelView = mult(mult(mult(viewTransform, translationMatrix), rotationMatrix), scaleMatrix);
-        this.transform = mult(projectionTransform, modelView);
+//        this.transform = mult(projectionTransform, modelView);
+        this.transform = modelView;
 
         //recalculation of aabb
         var size = this.aabb.length;
@@ -288,18 +319,31 @@ function Drawable(type, tessellationLevel) {
         this.currentAABB[5] = vec3(minX, maxY, minZ);
         this.currentAABB[6] = vec3(maxX, minY, minZ);
         this.currentAABB[7] = vec3(maxX, maxY, minZ);
-
-        console.log(JSON.stringify(this.currentAABB));
     }
 
     this.draw = function() {
         gl.uniformMatrix4fv(transform_loc, false, flatten(this.transform));
+        gl.uniformMatrix4fv(projection_loc, false, flatten(projectionTransform));
+
+//        gl.enable(gl.CULL_FACE);
+//        gl.cullFace(gl.BACK);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(this.vertices));
 
+        gl.bindBuffer(gl.ARRAY_BUFFER, normalsBufferId);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(this.normals));
+
+        var light = arrayOfLights[0];
+
         //draw frame
         gl.uniform4fv(color_loc, this.selected ? this.selectedOutlineColor : this.outlineColor);
+
+        gl.uniform4fv(ambient_loc, mult(light.ambient, this.ambient));
+        gl.uniform4fv(diffuse_loc, mult(light.diffuse, this.diffuse));
+        gl.uniform4fv(specular_loc, mult(light.specular, this.specular));
+        gl.uniform1f(shininess_loc, this.shininess);
+        gl.uniform4fv(lightpos_loc, multVec4ByMat4(light.position, viewTransform));
 
         gl.lineWidth(1);
 
@@ -392,22 +436,23 @@ function setProjectionMode(projection) {
 
     if (projection == "perspective") {
         viewTransform = lookAt(
-            vec3(0.0, 0.0, 20.0) //eye
+            vec3(0.0, 0.0, 30.0) //eye
             ,vec3(0.0, 0.0, 0.0) //at
             ,vec3(0.0, 1.0, 0.0) //up
         );
 
-        console.log("yo");
-        projectionTransform = perspective(60, 1, 10, -50);
+        projectionTransform = perspective(50, 1, 0.1, 50);
     } else {
         viewTransform = lookAt(
-            vec3(0.0, 0.0, 1.0) //eye
+            vec3(0.0, 0.0, 5.0) //eye
             ,vec3(0.0, 0.0, 0.0) //at
             ,vec3(0.0, 1.0, 0.0) //up
         );
 
         projectionTransform = ortho(-10.0, 10.0, -10.0, 10.0, 10.0, -10.0);
     }
+
+    currentProjection = projection;
 
     for (var i = 0; i != drawable.length; ++i) {
         drawable[i].updateTransform();
@@ -435,8 +480,14 @@ window.onload = function init() {
     var program = initShaders(gl, "vertex-shader", "fragment-shader");
     gl.useProgram(program);
 
+    projection_loc = gl.getUniformLocation(program, "uProjection");
     transform_loc = gl.getUniformLocation(program, "uTransform");
     color_loc = gl.getUniformLocation(program, "uColor");
+    ambient_loc = gl.getUniformLocation(program, "uAmbient");
+    diffuse_loc = gl.getUniformLocation(program, "uDiffuse");
+    specular_loc = gl.getUniformLocation(program, "uSpecular");
+    shininess_loc = gl.getUniformLocation(program, "uShininess");
+    lightpos_loc = gl.getUniformLocation(program, "lightPosition");
     // Load the data into the GPU
 
     vertexBufferId = gl.createBuffer();
@@ -448,6 +499,16 @@ window.onload = function init() {
     var vPosition = gl.getAttribLocation(program, "vPosition");
     gl.enableVertexAttribArray(vPosition);
     gl.vertexAttribPointer(vPosition, 3, gl.FLOAT, false, 12, 0);
+
+    gl.enableVertexAttribArray(0);
+
+    normalsBufferId = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, normalsBufferId);
+    gl.bufferData(gl.ARRAY_BUFFER, 16 * 2048 * 4, gl.DYNAMIC_DRAW);
+
+    var vNormal = gl.getAttribLocation(program, "vNormal");
+    gl.enableVertexAttribArray(vNormal);
+    gl.vertexAttribPointer(vNormal, 3, gl.FLOAT, false, 12, 0);
 
     gl.enableVertexAttribArray(0);
 
@@ -594,27 +655,42 @@ window.onload = function init() {
     resetControls(null);
 
     var cylinder = new Drawable("cylinder", 20);
-    cylinder.position = [0, 5, 0];
+    cylinder.position = [5, 0, 0];
     cylinder.scale = [3, 3, 3];
     cylinder.updateTransform();
     drawable.push(cylinder);
 
     var sphere = new Drawable("sphere", 2);
     sphere.scale = [1, 1, 1];
-    sphere.position = [-5, -5, 0];
+    sphere.position = [-5, 0, 0];
     sphere.updateTransform();
     drawable.push(sphere);
 
     var cone = new Drawable("cone", 20);
-    cone.position = [5, -5, -5];
+    cone.position = [0, 0, 0];
     cone.scale = [3, 3, 3];
     cone.updateTransform();
     drawable.push(cone);
 
     selectObject(sphere);
 
+    //add lights
+
+    var light = new LightSource(
+        vec4(0.0, 0.0, 0.0, 1.0)
+        , vec4(0.2, 0.2, 0.2, 1.0)
+        , vec4(1.0, 1.0,1.0, 1.0)
+        , vec4(1.0, 1.0, 1.0, 1.0)
+    );
+
+    arrayOfLights.push(light);
+
     render();
 }
+
+var ray = null;
+var ray0;
+var ray1;
 
 function checkHit(x, y) {
     var posX = 2 * (x - canvas.getBoundingClientRect().left) / (canvas.width) - 1.0;
@@ -623,14 +699,52 @@ function checkHit(x, y) {
     posX *= 10;
     posY *= 10;
 
-    console.log(posX);
-    for (var i = 0; i != drawable.length; ++i) {
-        var rect = drawable[i].bounds;
-        if (posX >= rect[0] && posX <= rect[2] && posY >= rect[1] && posY <= rect[3]) {
-            selectObject(drawable[i]);
-            break;
+    if (currentProjection == "orthographic") {
+        for (var i = 0; i != drawable.length; ++i) {
+            var aabb = drawable[i].currentAABB;
+            if (posX >= aabb[0][0] && posX <= aabb[3][0] && posY >= aabb[0][1] && posY <= aabb[3][1]) {
+                selectObject(drawable[i]);
+                break;
+            }
+        }
+    } else {
+        ray0 = vec3(0, 0, 20);
+//        ray0 = vec3(posX, posY, 10);
+        ray1 = vec3(posX, posY, -30);
+        ray = ray1 - ray0;
+
+        ray = subtract(ray1, ray0);
+
+//        ray1 = add(ray0, mult(ray, vec3(5, 5, 5)));
+        console.log(ray);
+        for (var i = 0; i != drawable.length; ++i) {
+            if (intersects(drawable[i].currentAABB, ray0, ray)) {
+                selectObject(drawable[i]);
+                break;
+            }
         }
     }
+}
+
+function intersects(aabb, rayOrigin, rayDir) {
+    var tmin = -Infinity;
+    var tmax = Infinity;
+    for (var i = 0; i < 3; ++i) {
+        if (rayDir[i] != 0.0) {
+            console.log(JSON.stringify(aabb));
+            var t1 = (aabb[0][i] - rayOrigin[i])/rayDir[i];
+            var t2 = (aabb[7][i] - rayOrigin[i])/rayDir[i];
+            console.log(rayDir[i]);
+            console.log(rayOrigin[i]);
+            tmin = Math.max(tmin, Math.min(t1, t2));
+            tmax = Math.min(tmax, Math.max(t1, t2));
+        } else if (rayOrigin[i] <= aabb[0][i] || rayOrigin[i] >= aabb[7][i]) {
+            console.log("intersects false");
+            return false;
+        }
+    }
+    console.log(tmax + " " + tmin + "tmax");
+    return tmax > tmin && tmax > 0.0;
 }
 
 function resetControls(selected) {
@@ -757,5 +871,20 @@ function render() {
 
     for (var i = 0; i != drawable.length; ++i) {
         drawable[i].draw();
+    }
+
+    if (ray != null) {
+        gl.lineWidth(2);
+        gl.uniform4fv(color_loc, [0.8, 0.2, 0.2, 0.8]);
+        gl.uniformMatrix4fv(transform_loc, false, flatten(projectionTransform));
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten([ray0[0], ray0[1], ray0[2], ray1[0], ray1[1], ray1[2]]));
+
+//        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
+//        gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, this.aabbIndecies);
+        console.log("draw ray");
+        gl.drawArrays(gl.LINE_STRIP, 0, 2);
+//        gl.drawElements(gl.LINE_STRIP, this.aabbIndecies.length, gl.UNSIGNED_SHORT, 0);
     }
 }
