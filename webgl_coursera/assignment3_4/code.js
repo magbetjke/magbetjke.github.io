@@ -18,9 +18,9 @@ var lightpos_loc;
 var viewTransform;
 var projectionTransform;
 var currentProjection;
-var arrayOfLights =[];
 
 var lightProgram;
+var simpleProgram;
 
 var selectedObject;
 
@@ -77,7 +77,7 @@ function Drawable(type, tessellationLevel) {
     this.ambient = vec4(1.0, 1.0, 1.0, 1.0);
     this.diffuse = vec4(1.0, 0.8, 0.0, 1.0);
     this.specular = vec4(1.0, 1.0, 1.0, 1.0);
-    this.shininess = 100.0;
+    this.shininess = 20.0;
 
     this.getMiddlePoint = function(a, b) {
         return mix(a, b, 0.5);
@@ -104,9 +104,9 @@ function Drawable(type, tessellationLevel) {
         this.vertices.push(a, b, c);
 
         if (this.type == "sphere") {
-            this.normals.push(normalize(subtract(a, vec3(0, 0, 0))));
-            this.normals.push(normalize(subtract(b, vec3(0, 0, 0))));
-            this.normals.push(normalize(subtract(c, vec3(0, 0, 0))));
+            this.normals.push(normalize(subtract(vec3(0, 0, 0), a)));
+            this.normals.push(normalize(subtract(vec3(0, 0, 0), b)));
+            this.normals.push(normalize(subtract(vec3(0, 0, 0), c)));
         } else {
             var normal = normalize(cross(subtract(a, c), subtract(a, b)));
             this.normals.push(normal);
@@ -219,12 +219,12 @@ function Drawable(type, tessellationLevel) {
             }
 
             for (var i = 2; i < points.length - 1; ++i) {
-                this.addTriangle(points[i], points[0], points[i + 1]);
-                this.addTriangle(points[i], points[i + 1], points[1]);
+                this.addTriangle(points[i], points[i + 1], points[0]);
+                this.addTriangle(points[i], points[1], points[i + 1]);
             }
 
-            this.addTriangle(points[points.length - 1], points[0], points[2]);
-            this.addTriangle(points[points.length - 1], points[2], points[1]);
+            this.addTriangle(points[points.length - 1], points[2], points[0]);
+            this.addTriangle(points[points.length - 1], points[1], points[2]);
 
             this.aabb = makeAABB(1, 1, 1, 0, 0, 0);
         } else if (this.type == "cylinder") {
@@ -253,19 +253,19 @@ function Drawable(type, tessellationLevel) {
             }
 
             for (var i = 0; i < top_points.length - 1; ++i) {
-                this.addTriangle(top_points[i], points[0], top_points[i + 1]); //top triangle
-                this.addTriangle(bottom_points[i], bottom_points[i + 1], points[1]); //bottom triangle
+                this.addTriangle(top_points[i], top_points[i + 1], points[0]); //top triangle
+                this.addTriangle(bottom_points[i], points[1], bottom_points[i + 1]); //bottom triangle
 
-                this.addTriangle(top_points[i], top_points[i + 1], bottom_points[i + 1]); //quad part
-                this.addTriangle(bottom_points[i], top_points[i], bottom_points[i + 1]); //quad part
+                this.addTriangle(top_points[i], bottom_points[i + 1], top_points[i + 1]); //quad part
+                this.addTriangle(bottom_points[i],bottom_points[i + 1], top_points[i]); //quad part
             }
 
 
-            this.addTriangle(top_points[top_points.length - 1], points[0], top_points[0]); //top triangle
-            this.addTriangle(bottom_points[bottom_points.length - 1], bottom_points[0], points[1]); //bottom triangle
+            this.addTriangle(top_points[top_points.length - 1], top_points[0], points[0]); //top triangle
+            this.addTriangle(bottom_points[bottom_points.length - 1], points[1], bottom_points[0]); //bottom triangle
 
-            this.addTriangle(top_points[top_points.length - 1], top_points[0], bottom_points[0]); //quad part
-            this.addTriangle(bottom_points[bottom_points.length - 1], top_points[top_points.length - 1], bottom_points[0]); //quad part
+            this.addTriangle(top_points[top_points.length - 1], bottom_points[0], top_points[0]); //quad part
+            this.addTriangle(bottom_points[bottom_points.length - 1], bottom_points[0], top_points[top_points.length - 1]); //quad part
 
             this.aabb = makeAABB(1, 1, 1, 0, 0, 0);
         }
@@ -342,6 +342,7 @@ function Drawable(type, tessellationLevel) {
     }
 
     this.draw = function() {
+        gl.useProgram(lightProgram);
         gl.uniformMatrix4fv(transform_loc, false, flatten(this.transform));
         gl.uniformMatrix4fv(view_loc, false, flatten(viewTransform));
         gl.uniformMatrix4fv(projection_loc, false, flatten(projectionTransform));
@@ -363,68 +364,35 @@ function Drawable(type, tessellationLevel) {
         gl.uniform4fv(gl.getUniformLocation(lightProgram, "uLights[1].specular"), directionalEnabled ? directionalLight.specular : vec4(0, 0, 0, 0));
 
 
-
-        gl.enable(gl.CULL_FACE);
-        gl.cullFace(gl.BACK);
-
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(this.vertices));
 
         gl.bindBuffer(gl.ARRAY_BUFFER, normalsBufferId);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(this.normals));
 
-
-        //draw frame
-//        gl.uniform4fv(color_loc, this.selected ? this.selectedOutlineColor : this.outlineColor);
-
-//        console.log(JSON.stringify(multVec4ByMat4(light.position, viewTransform)));
-
-
-
-//        gl.lineWidth(1);
-//
-//        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
-//        gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(this.outlineIndexes));
-//
-//        gl.polygonOffset(0.0, 0.0);
-//        gl.drawElements(gl.LINES, this.outlineIndexes.length, gl.UNSIGNED_SHORT, 0);
-
-        //draw filled
         gl.uniform4fv(color_loc, this.color);
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
         gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(this.indexes));
 
-//        gl.polygonOffset(1.0, 2.0);
         gl.drawElements(gl.TRIANGLES, this.indexes.length, gl.UNSIGNED_SHORT, 0);
 
-        //draw hit zone
-/*        if (show_hits) {
-            gl.disable(gl.DEPTH_TEST);
+        if (show_hits) {
+            gl.useProgram(simpleProgram);
 
-            gl.uniform4fv(color_loc, [0.0, 0.3, 0.4, 0.3]);
-            gl.uniform4fv(color_loc, [0.0, 0.3, 0.4, 0.3]);
-            gl.uniformMatrix4fv(transform_loc, false, flatten(mult(projectionTransform, viewTransform)));
-
-            var bounds = [
-                vec3(this.bounds[0], this.bounds[1], 0),
-                vec3(this.bounds[0], this.bounds[3], 0),
-                vec3(this.bounds[2], this.bounds[3], 0),
-                vec3(this.bounds[2], this.bounds[1], 0)
-
-            ];
-
-            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
-            gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(bounds));
-
-            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-            gl.enable(gl.DEPTH_TEST);
-        }*/
-
-        if (show_hits) { //todo other shader program
             gl.lineWidth(2);
-            gl.uniform4fv(color_loc, [0.0, 0.8, 0.2, 0.8]);
-            gl.uniformMatrix4fv(transform_loc, false, flatten(projectionTransform));
+
+            gl.uniform4fv(gl.getUniformLocation(simpleProgram, "uColor"), this.selected ? this.selectedOutlineColor : this.outlineColor);
+            gl.uniformMatrix4fv(gl.getUniformLocation(simpleProgram, "uTransform"), false, flatten(mult(projectionTransform, mult(viewTransform, this.transform))));
+
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
+            gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(this.outlineIndexes));
+
+            gl.polygonOffset(0.0, 0.0);
+            gl.drawElements(gl.LINES, this.outlineIndexes.length, gl.UNSIGNED_SHORT, 0);
+
+            gl.uniform4fv(gl.getUniformLocation(simpleProgram, "uColor"), [0.0, 0.8, 0.2, 0.8]);
+            gl.uniformMatrix4fv(gl.getUniformLocation(simpleProgram, "uTransform"), false, flatten(projectionTransform));
 
             gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
             gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(this.currentAABB));
@@ -508,7 +476,8 @@ window.onload = function init() {
     //  Configure WebGL
     //
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(0.98, 0.98, 0.98, 1.0);
+//    gl.clearColor(0.98, 0.98, 0.98, 1.0);
+    gl.clearColor(0.3, 0.3, 0.3, 1.0);
 
     setProjectionMode("orthographic");
 
@@ -564,7 +533,18 @@ window.onload = function init() {
     //  	clear();
     //  }
 
-      canvas.addEventListener("mousedown", function(event){
+    simpleProgram = initShaders(gl, "simple-vertex-shader", "simple-fragment-shader");
+    gl.useProgram(simpleProgram);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
+
+    vPosition = gl.getAttribLocation(simpleProgram, "vPosition");
+    gl.enableVertexAttribArray(vPosition);
+    gl.vertexAttribPointer(vPosition, 3, gl.FLOAT, false, 12, 0);
+
+    gl.enableVertexAttribArray(0);
+
+    canvas.addEventListener("mousedown", function(event){
       		mouse_pressed = true;
 
       		checkHit(event.clientX, event.clientY);
@@ -754,8 +734,6 @@ window.onload = function init() {
         , vec4(1.0, 1.0, 1.0, 1.0)
     );
 
-//    arrayOfLights.push(light);
-
     render();
 }
 
@@ -779,15 +757,11 @@ function checkHit(x, y) {
             }
         }
     } else {
+        //todo unproject method should be implemented to make this test work
         ray0 = vec3(0, 0, 20);
-//        ray0 = vec3(posX, posY, 10);
         ray1 = vec3(posX, posY, -30);
-        ray = ray1 - ray0;
-
         ray = subtract(ray1, ray0);
 
-//        ray1 = add(ray0, mult(ray, vec3(5, 5, 5)));
-        console.log(ray);
         for (var i = 0; i != drawable.length; ++i) {
             if (intersects(drawable[i].currentAABB, ray0, ray)) {
                 selectObject(drawable[i]);
@@ -948,29 +922,6 @@ function render() {
     for (var i = 0; i != drawable.length; ++i) {
         drawable[i].draw();
     }
-
-/*    if (ray != null) {
-        gl.lineWidth(2);
-        gl.uniform4fv(color_loc, [0.8, 0.2, 0.2, 0.8]);
-        gl.uniformMatrix4fv(transform_loc, false, flatten(projectionTransform));
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten([ray0[0], ray0[1], ray0[2], ray1[0], ray1[1], ray1[2]]));
-
-//        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
-//        gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, this.aabbIndecies);
-        console.log("draw ray");
-        gl.drawArrays(gl.LINE_STRIP, 0, 2);
-//        gl.drawElements(gl.LINE_STRIP, this.aabbIndecies.length, gl.UNSIGNED_SHORT, 0);
-    }*/
-
-//
-//    gl.uniform4fv(color_loc, [0.8, 0.2, 0.2, 0.8]);
-//    gl.uniformMatrix4fv(transform_loc, false, flatten(mult(projectionTransform, viewTransform)));
-//
-//    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
-//    gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(pointLight.position));
-//    gl.drawArrays(gl.POINTS, 0, 1);
 
     var angle;
     if (directionalAnimated) {
