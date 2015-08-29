@@ -7,6 +7,7 @@ var indexBufferId;
 
 var projection_loc;
 var transform_loc;
+var view_loc;
 var color_loc;
 var ambient_loc;
 var diffuse_loc;
@@ -19,7 +20,18 @@ var projectionTransform;
 var currentProjection;
 var arrayOfLights =[];
 
+var lightProgram;
+
 var selectedObject;
+
+//lights
+var directionalEnabled = true;
+var directionalAnimated = true;
+var directionalLight;
+
+var pointLightEnabled = true;
+var pointLightAnimated = true;
+var pointLight;
 
 var show_hits = false;
 var uiColor = vec4(255, 255, 255, 255);
@@ -62,9 +74,9 @@ function Drawable(type, tessellationLevel) {
     ]);
 
     //material properties
-    this.ambient = vec4(1.0, 0.0, 1.0, 1.0);
+    this.ambient = vec4(1.0, 1.0, 1.0, 1.0);
     this.diffuse = vec4(1.0, 0.8, 0.0, 1.0);
-    this.specular = vec4(1.0, 0.8, 0.0, 1.0);
+    this.specular = vec4(1.0, 1.0, 1.0, 1.0);
     this.shininess = 100.0;
 
     this.getMiddlePoint = function(a, b) {
@@ -87,12 +99,21 @@ function Drawable(type, tessellationLevel) {
         a = this.validate(a);
         b = this.validate(b);
         c = this.validate(c);
-        var normal = normalize(cross(subtract(c, a), subtract(b, a)));
+
 
         this.vertices.push(a, b, c);
-        this.normals.push(normal);
-        this.normals.push(normal);
-        this.normals.push(normal);
+
+        if (this.type == "sphere") {
+            this.normals.push(normalize(subtract(a, vec3(0, 0, 0))));
+            this.normals.push(normalize(subtract(b, vec3(0, 0, 0))));
+            this.normals.push(normalize(subtract(c, vec3(0, 0, 0))));
+        } else {
+            var normal = normalize(cross(subtract(a, c), subtract(a, b)));
+            this.normals.push(normal);
+            this.normals.push(normal);
+            this.normals.push(normal);
+        }
+
         this.outlineIndexes.push(
             this.currentIndex, this.currentIndex + 1,
             this.currentIndex + 1, this.currentIndex + 2,
@@ -191,18 +212,18 @@ function Drawable(type, tessellationLevel) {
             for (var i = 0; i != vertex_count; ++i) {
                 angle = (Math.PI * 2 / (vertex_count)) * i;
 
-                var x = 0.5 * Math.cos(angle);
-                var z = -0.5 * Math.sin(angle);
+                var x = -0.5 * Math.cos(angle);
+                var z = 0.5 * Math.sin(angle);
 
                 points.push(vec3(x, bottom, z));
             }
 
             for (var i = 2; i < points.length - 1; ++i) {
-                this.addTriangle(points[i], points[i + 1], points[0]);
+                this.addTriangle(points[i], points[0], points[i + 1]);
                 this.addTriangle(points[i], points[i + 1], points[1]);
             }
 
-            this.addTriangle(points[points.length - 1], points[2], points[0]);
+            this.addTriangle(points[points.length - 1], points[0], points[2]);
             this.addTriangle(points[points.length - 1], points[2], points[1]);
 
             this.aabb = makeAABB(1, 1, 1, 0, 0, 0);
@@ -224,8 +245,8 @@ function Drawable(type, tessellationLevel) {
             for (var i = 0; i != vertex_count; ++i) {
                 angle = (Math.PI * 2 / (vertex_count)) * i;
 
-                var x = 0.5 * Math.cos(angle);
-                var z = -0.5 * Math.sin(angle);
+                var x = -0.5 * Math.cos(angle);
+                var z = 0.5 * Math.sin(angle);
 
                 top_points.push(vec3(x, top, z));
                 bottom_points.push(vec3(x, bottom, z));
@@ -250,8 +271,6 @@ function Drawable(type, tessellationLevel) {
         }
 
         this.updateTransform();
-
-
     };
 
     this.updateTransform = function() {
@@ -272,15 +291,16 @@ function Drawable(type, tessellationLevel) {
         ];
 
 
-        var modelView = mult(mult(mult(viewTransform, translationMatrix), rotationMatrix), scaleMatrix);
+        var model = mult(mult(translationMatrix, rotationMatrix), scaleMatrix);
+        var modeView = mult(viewTransform, model);
 //        this.transform = mult(projectionTransform, modelView);
-        this.transform = modelView;
+        this.transform = model;
 
         //recalculation of aabb
         var size = this.aabb.length;
         var transformedAABB = [];
         for (var i = 0; i != size; ++i) {
-            transformedAABB.push(multVec4ByMat4(vec4(this.aabb[i][0], this.aabb[i][1], this.aabb[i][2], 1.0), modelView));
+            transformedAABB.push(multVec4ByMat4(vec4(this.aabb[i][0], this.aabb[i][1], this.aabb[i][2], 1.0), modeView));
         }
 
         var minX = transformedAABB[0][0];
@@ -323,10 +343,29 @@ function Drawable(type, tessellationLevel) {
 
     this.draw = function() {
         gl.uniformMatrix4fv(transform_loc, false, flatten(this.transform));
+        gl.uniformMatrix4fv(view_loc, false, flatten(viewTransform));
         gl.uniformMatrix4fv(projection_loc, false, flatten(projectionTransform));
 
-//        gl.enable(gl.CULL_FACE);
-//        gl.cullFace(gl.BACK);
+        gl.uniform4fv(ambient_loc, this.ambient);
+        gl.uniform4fv(diffuse_loc, this.diffuse);
+        gl.uniform4fv(specular_loc, this.specular);
+        gl.uniform1f(shininess_loc, this.shininess);
+//        gl.uniform4fv(lightpos_loc, directionalLight.position);
+
+        gl.uniform4fv(gl.getUniformLocation(lightProgram, "lightPositions[0]"), multVec4ByMat4(pointLight.position, viewTransform));
+        gl.uniform4fv(gl.getUniformLocation(lightProgram, "uLights[0].ambient"), pointLightEnabled ? pointLight.ambient : vec4(0, 0, 0, 0));
+        gl.uniform4fv(gl.getUniformLocation(lightProgram, "uLights[0].diffuse"), pointLightEnabled ? pointLight.diffuse : vec4(0, 0, 0, 0));
+        gl.uniform4fv(gl.getUniformLocation(lightProgram, "uLights[0].specular"), pointLightEnabled ? pointLight.specular : vec4(0, 0, 0, 0));
+
+        gl.uniform4fv(gl.getUniformLocation(lightProgram, "lightPositions[1]"), multVec4ByMat4(directionalLight.position, viewTransform));
+        gl.uniform4fv(gl.getUniformLocation(lightProgram, "uLights[1].ambient"), directionalEnabled ? directionalLight.ambient : vec4(0, 0, 0, 0));
+        gl.uniform4fv(gl.getUniformLocation(lightProgram, "uLights[1].diffuse"), directionalEnabled ? directionalLight.diffuse : vec4(0, 0, 0, 0));
+        gl.uniform4fv(gl.getUniformLocation(lightProgram, "uLights[1].specular"), directionalEnabled ? directionalLight.specular : vec4(0, 0, 0, 0));
+
+
+
+        gl.enable(gl.CULL_FACE);
+        gl.cullFace(gl.BACK);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(this.vertices));
@@ -334,24 +373,21 @@ function Drawable(type, tessellationLevel) {
         gl.bindBuffer(gl.ARRAY_BUFFER, normalsBufferId);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(this.normals));
 
-        var light = arrayOfLights[0];
 
         //draw frame
-        gl.uniform4fv(color_loc, this.selected ? this.selectedOutlineColor : this.outlineColor);
+//        gl.uniform4fv(color_loc, this.selected ? this.selectedOutlineColor : this.outlineColor);
 
-        gl.uniform4fv(ambient_loc, mult(light.ambient, this.ambient));
-        gl.uniform4fv(diffuse_loc, mult(light.diffuse, this.diffuse));
-        gl.uniform4fv(specular_loc, mult(light.specular, this.specular));
-        gl.uniform1f(shininess_loc, this.shininess);
-        gl.uniform4fv(lightpos_loc, multVec4ByMat4(light.position, viewTransform));
+//        console.log(JSON.stringify(multVec4ByMat4(light.position, viewTransform)));
 
-        gl.lineWidth(1);
 
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
-        gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(this.outlineIndexes));
 
-        gl.polygonOffset(0.0, 0.0);
-        gl.drawElements(gl.LINES, this.outlineIndexes.length, gl.UNSIGNED_SHORT, 0);
+//        gl.lineWidth(1);
+//
+//        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
+//        gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(this.outlineIndexes));
+//
+//        gl.polygonOffset(0.0, 0.0);
+//        gl.drawElements(gl.LINES, this.outlineIndexes.length, gl.UNSIGNED_SHORT, 0);
 
         //draw filled
         gl.uniform4fv(color_loc, this.color);
@@ -359,13 +395,14 @@ function Drawable(type, tessellationLevel) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
         gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, new Uint16Array(this.indexes));
 
-        gl.polygonOffset(1.0, 2.0);
+//        gl.polygonOffset(1.0, 2.0);
         gl.drawElements(gl.TRIANGLES, this.indexes.length, gl.UNSIGNED_SHORT, 0);
 
         //draw hit zone
 /*        if (show_hits) {
             gl.disable(gl.DEPTH_TEST);
 
+            gl.uniform4fv(color_loc, [0.0, 0.3, 0.4, 0.3]);
             gl.uniform4fv(color_loc, [0.0, 0.3, 0.4, 0.3]);
             gl.uniformMatrix4fv(transform_loc, false, flatten(mult(projectionTransform, viewTransform)));
 
@@ -384,7 +421,7 @@ function Drawable(type, tessellationLevel) {
             gl.enable(gl.DEPTH_TEST);
         }*/
 
-        if (show_hits) {
+        if (show_hits) { //todo other shader program
             gl.lineWidth(2);
             gl.uniform4fv(color_loc, [0.0, 0.8, 0.2, 0.8]);
             gl.uniformMatrix4fv(transform_loc, false, flatten(projectionTransform));
@@ -436,20 +473,20 @@ function setProjectionMode(projection) {
 
     if (projection == "perspective") {
         viewTransform = lookAt(
-            vec3(0.0, 0.0, 30.0) //eye
+            vec3(0.0, 0.0, 15.0) //eye
             ,vec3(0.0, 0.0, 0.0) //at
             ,vec3(0.0, 1.0, 0.0) //up
         );
 
-        projectionTransform = perspective(50, 1, 0.1, 50);
+        projectionTransform = perspective(70, 1, 0.1, 50);
     } else {
         viewTransform = lookAt(
-            vec3(0.0, 0.0, 5.0) //eye
+            vec3(0.0, 0.0, 10.0) //eye
             ,vec3(0.0, 0.0, 0.0) //at
             ,vec3(0.0, 1.0, 0.0) //up
         );
 
-        projectionTransform = ortho(-10.0, 10.0, -10.0, 10.0, 10.0, -10.0);
+        projectionTransform = ortho(-10.0, 10.0, -10.0, 10.0, -100.0, 100.0);
     }
 
     currentProjection = projection;
@@ -477,17 +514,18 @@ window.onload = function init() {
 
     //  Load shaders and initialize attribute buffers
 
-    var program = initShaders(gl, "vertex-shader", "fragment-shader");
-    gl.useProgram(program);
+    lightProgram = initShaders(gl, "vertex-shader", "fragment-shader");
+    gl.useProgram(lightProgram);
 
-    projection_loc = gl.getUniformLocation(program, "uProjection");
-    transform_loc = gl.getUniformLocation(program, "uTransform");
-    color_loc = gl.getUniformLocation(program, "uColor");
-    ambient_loc = gl.getUniformLocation(program, "uAmbient");
-    diffuse_loc = gl.getUniformLocation(program, "uDiffuse");
-    specular_loc = gl.getUniformLocation(program, "uSpecular");
-    shininess_loc = gl.getUniformLocation(program, "uShininess");
-    lightpos_loc = gl.getUniformLocation(program, "lightPosition");
+    projection_loc = gl.getUniformLocation(lightProgram, "uProjection");
+    view_loc = gl.getUniformLocation(lightProgram, "uViewTransform");
+    transform_loc = gl.getUniformLocation(lightProgram, "uTransform");
+    color_loc = gl.getUniformLocation(lightProgram, "uColor");
+    ambient_loc = gl.getUniformLocation(lightProgram, "uAmbient");
+    diffuse_loc = gl.getUniformLocation(lightProgram, "uDiffuse");
+    specular_loc = gl.getUniformLocation(lightProgram, "uSpecular");
+    shininess_loc = gl.getUniformLocation(lightProgram, "uShininess");
+    lightpos_loc = gl.getUniformLocation(lightProgram, "lightPosition");
     // Load the data into the GPU
 
     vertexBufferId = gl.createBuffer();
@@ -496,7 +534,7 @@ window.onload = function init() {
 
     // Associate out shader variables with our data buffer
 
-    var vPosition = gl.getAttribLocation(program, "vPosition");
+    var vPosition = gl.getAttribLocation(lightProgram, "vPosition");
     gl.enableVertexAttribArray(vPosition);
     gl.vertexAttribPointer(vPosition, 3, gl.FLOAT, false, 12, 0);
 
@@ -506,7 +544,7 @@ window.onload = function init() {
     gl.bindBuffer(gl.ARRAY_BUFFER, normalsBufferId);
     gl.bufferData(gl.ARRAY_BUFFER, 16 * 2048 * 4, gl.DYNAMIC_DRAW);
 
-    var vNormal = gl.getAttribLocation(program, "vNormal");
+    var vNormal = gl.getAttribLocation(lightProgram, "vNormal");
     gl.enableVertexAttribArray(vNormal);
     gl.vertexAttribPointer(vNormal, 3, gl.FLOAT, false, 12, 0);
 
@@ -516,7 +554,7 @@ window.onload = function init() {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBufferId);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, 16 * 2048, gl.DYNAMIC_DRAW);
 
-//    var vColor = gl.getAttribLocation(program, "vColor");
+//    var vColor = gl.getAttribLocation(lightProgram, "vColor");
 //    gl.vertexAttribPointer(vColor, 4, gl.FLOAT, false, 24, 8)
 //    gl.enableVertexAttribArray(vColor);
 
@@ -649,26 +687,52 @@ window.onload = function init() {
     document.getElementById("are_hit_zones_visible").onchange = function(event) {
         var target = event.target || event.srcElement;
         show_hits = target.checked;
-        render();
+    };
+
+    document.getElementById("directional_enabled").checked = directionalEnabled;
+    document.getElementById("directional_enabled").onchange = function(event) {
+        var target = event.target || event.srcElement;
+        directionalEnabled = target.checked;
+    };
+
+    document.getElementById("directional_animated").checked = directionalAnimated;
+    document.getElementById("directional_animated").onchange = function(event) {
+        var target = event.target || event.srcElement;
+        directionalAnimated = target.checked;
+    };
+
+    document.getElementById("point_enabled").checked = pointLightEnabled;
+    document.getElementById("point_enabled").onchange = function(event) {
+        var target = event.target || event.srcElement;
+        pointLightEnabled = target.checked;
+    };
+
+    document.getElementById("point_animated").checked = pointLightAnimated;
+    document.getElementById("point_animated").onchange = function(event) {
+        var target = event.target || event.srcElement;
+        pointLightAnimated = target.checked;
     };
 
     resetControls(null);
 
-    var cylinder = new Drawable("cylinder", 20);
+    var cylinder = new Drawable("cylinder", 30);
     cylinder.position = [5, 0, 0];
     cylinder.scale = [3, 3, 3];
+    cylinder.color = [0.0, 0.0, 1.0, 1.0];
     cylinder.updateTransform();
     drawable.push(cylinder);
 
-    var sphere = new Drawable("sphere", 2);
+    var sphere = new Drawable("sphere", 3);
     sphere.scale = [1, 1, 1];
     sphere.position = [-5, 0, 0];
+    sphere.color = [1.0, 0.0, 0.0, 1.0];
     sphere.updateTransform();
     drawable.push(sphere);
 
-    var cone = new Drawable("cone", 20);
+    var cone = new Drawable("cone", 30);
     cone.position = [0, 0, 0];
     cone.scale = [3, 3, 3];
+    cone.color = [0.0, 1.0, 0.0, 1.0];
     cone.updateTransform();
     drawable.push(cone);
 
@@ -676,14 +740,21 @@ window.onload = function init() {
 
     //add lights
 
-    var light = new LightSource(
-        vec4(0.0, 0.0, 0.0, 1.0)
+    directionalLight = new LightSource(
+        vec4(0.0, 20.0, 20.0, 0.0)
+        , vec4(0.2, 0.2, 0.2, 1.0)
+        , vec4(0.8, 0.8, 0.8, 1.0)
+        , vec4(1.0, 1.0, 1.0, 1.0)
+    );
+
+    pointLight = new LightSource(
+        vec4(0.0, 20.0, 20.0, 1.0)
         , vec4(0.2, 0.2, 0.2, 1.0)
         , vec4(1.0, 1.0,1.0, 1.0)
         , vec4(1.0, 1.0, 1.0, 1.0)
     );
 
-    arrayOfLights.push(light);
+//    arrayOfLights.push(light);
 
     render();
 }
@@ -834,13 +905,13 @@ function selectObject(obj) {
 
 function createObject(objectType) {
     if (objectType == "sphere") {
-        var sphere = new Drawable("sphere", 2);
+        var sphere = new Drawable("sphere", 3);
         sphere.updateTransform();
         drawable.push(sphere);
         selectObject(sphere);
 //        console.log("added sphere");
     } else if (objectType == "cone") {
-        var cone = new Drawable("cone", 20);
+        var cone = new Drawable("cone", 30);
         cone.scale = [3, 3, 3];
         cone.updateTransform();
         drawable.push(cone);
@@ -848,7 +919,7 @@ function createObject(objectType) {
 //        console.log("added cone");
     } else if (objectType == "cylinder") {
 //        console.log("added cylinder");
-        var cylinder = new Drawable("cylinder", 20);
+        var cylinder = new Drawable("cylinder", 30);
         cylinder.scale = [3, 3, 3];
         cylinder.updateTransform();
         drawable.push(cylinder);
@@ -860,6 +931,11 @@ function clear() {
     drawable = [];
 //    render();
 }
+
+var frameNumber = 0;
+
+var directionFrameNumber = 0;
+var pointFrameNumber = 0;
 
 function render() {
     window.requestAnimFrame(render, canvas);
@@ -873,7 +949,7 @@ function render() {
         drawable[i].draw();
     }
 
-    if (ray != null) {
+/*    if (ray != null) {
         gl.lineWidth(2);
         gl.uniform4fv(color_loc, [0.8, 0.2, 0.2, 0.8]);
         gl.uniformMatrix4fv(transform_loc, false, flatten(projectionTransform));
@@ -886,5 +962,27 @@ function render() {
         console.log("draw ray");
         gl.drawArrays(gl.LINE_STRIP, 0, 2);
 //        gl.drawElements(gl.LINE_STRIP, this.aabbIndecies.length, gl.UNSIGNED_SHORT, 0);
+    }*/
+
+//
+//    gl.uniform4fv(color_loc, [0.8, 0.2, 0.2, 0.8]);
+//    gl.uniformMatrix4fv(transform_loc, false, flatten(mult(projectionTransform, viewTransform)));
+//
+//    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferId);
+//    gl.bufferSubData(gl.ARRAY_BUFFER, 0, flatten(pointLight.position));
+//    gl.drawArrays(gl.POINTS, 0, 1);
+
+    var angle;
+    if (directionalAnimated) {
+        angle = (directionFrameNumber % 360) * Math.PI / 180;
+        directionalLight.position = vec4(Math.cos(angle) * 1000, Math.sin(angle) * 1000, -1000, 1.0);
+        ++directionFrameNumber;
     }
+
+    if (pointLightAnimated) {
+        angle = (pointFrameNumber % 360) * Math.PI / 180;
+        pointLight.position = vec4(Math.cos(angle) * 100, 20, -100, 1.0);
+        ++pointFrameNumber;
+    }
+
 }

@@ -8,36 +8,81 @@
     attribute vec4 vPosition;
     attribute vec4 vNormal;
 
-    uniform vec4 uColor;
-    uniform mat4 uProjection;
-    uniform mat4 uTransform;
-    uniform vec4 lightPosition;
+    uniform mat4 uProjection; //proj
+    uniform mat4 uTransform; //model
+    uniform mat4 uViewTransform; //view
+
+    uniform vec4 directionalPosition;
+    uniform vec4 pointPosition;
+
+    uniform vec4 lightPositions[2];
+
+    varying vec3 L[2];
+    varying vec3 N, E;
+    //varying vec4 fColor;
+
+    void main() 
+    {
+        gl_Position = uProjection * uViewTransform * uTransform * vPosition;
+
+        vec3 pos = -(uViewTransform * uTransform * vPosition).xyz;
+
+        L[0] = lightPositions[0].xyz - pos;
+        L[1] = lightPositions[1].xyz - pos;
+
+        N = normalize((uViewTransform * uTransform * vec4(vNormal.xyz, 0.0)).xyz);
+        E = normalize(-pos);
+
+        gl_PointSize = 5.0;
+    }
+  </script>
+
+  <script id="fragment-shader" type="x-shader/x-fragment">
+    precision mediump float;
+
+    struct LightInfo {
+        vec4 ambient;
+        vec4 diffuse;
+        vec4 specular;
+    };
+    uniform LightInfo uLights[2];
+
     uniform vec4 uAmbient;
     uniform vec4 uDiffuse;
     uniform vec4 uSpecular;
     uniform float uShininess;
 
-    varying vec4 fColor;
+    varying vec3 L[2];
+    varying vec3 N, E;
+    uniform vec4 uColor;
 
     void main() 
     {
-      gl_PointSize = 5.0;
-      vec4 worldPosition = uTransform * (vPosition);
-      float product = dot(worldPosition - lightPosition, vNormal);
-      gl_Position = uProjection * worldPosition;
-      fColor = product > 0.0 ? vec4(0.0, 0.0, 0.0, 1.0) : uColor;
-      //fColor = uColor;
-    }
-  </script>
+        vec3 light1 = normalize(L[0]);
+        vec3 light2 = normalize(L[1]);
 
-  <script id="fragment-shader" type="x-shader/x-fragment">
-    precision mediump float; 
+        vec3 H[2];
+        H[0] = normalize(light1 + E);
+        H[1] = normalize(light2 + E);
 
-    varying vec4 fColor;
-    
-    void main() 
-    { 
-      gl_FragColor = fColor; 
+
+        float distance = length(L[0]) / 150.0;
+
+        vec4 ambient = uLights[0].ambient * uLights[1].ambient * uAmbient;
+
+        float Kd[2];
+        Kd[0] = max(dot(light1, N), 0.0);
+        Kd[1] = max(dot(light2, N), 0.0);
+        vec4 diffuse = ((Kd[0] * uLights[0].diffuse) / (distance * distance) + Kd[1] * uLights[1].diffuse) * uColor;
+
+        float Ks = pow(max(dot(N, H[1]), 0.0), uShininess);
+        vec4 specular = Ks * uLights[1].specular * uSpecular; //only directional
+        if (dot(light2, N) < 0.0) {
+            specular = vec4(0.0, 0.0, 0.0, 1.0);
+        }
+
+        gl_FragColor = ambient + diffuse + specular;
+        gl_FragColor.a = 1.0;
     }
   </script>
 
@@ -135,7 +180,7 @@
       <button id="add_object">Create</button>
 
   </div>
-    <div>show hit zones<input type="checkbox" id="are_hit_zones_visible" value="flag"/></div>
+
     <div id="projection_block">
         Projection mode:
         <select id="projection_type">
@@ -143,6 +188,27 @@
             <option value="perspective">perspective</option>
         </select>
     </div>
+<div style="visibility: hidden">show wireframe<input type="checkbox" id="are_hit_zones_visible" value="flag"/></div>
+
+<!--light1-->
+<div style="width: 300px; padding: 5px; margin-top: 5px;">
+    <div style="border: 1px solid black; width: 120px; padding: 5px; margin-top: 5px; float: right" align="center">
+        <div align="left" style="width: 120px">
+            <div align="center" style="padding-top: 2px; padding-bottom: 5px; font-weight: bold">Directional light</div>
+            <div>enabled<input type="checkbox" id="directional_enabled" value="flag"/></div>
+            <div>animated<input type="checkbox" id="directional_animated" value="flag"/></div>
+        </div>
+    </div>
+
+    <!--light2-->
+    <div style="border: 1px solid black; width: 120px; padding: 5px; margin-top: 5px;" align="center">
+        <div align="left" style="width: 120px">
+            <div align="center" style="padding-top: 2px; padding-bottom: 5px; font-weight: bold">Point light</div>
+            <div>enabled<input type="checkbox" id="point_enabled" value="flag"/></div>
+            <div>animated<input type="checkbox" id="point_animated" value="flag"/></div>
+        </div>
+    </div>
+</div>
 
 <!--
   <div><h3>color:</h3> 
