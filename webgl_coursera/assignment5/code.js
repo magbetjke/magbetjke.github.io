@@ -620,7 +620,7 @@ window.onload = function init() {
             selectedObject.rotation[2] -= prevMouseY - currentY;
 
             resetControls(selectedObject);
-            selectedObject.updateTransform();
+            updateSelectedObject();
 
             prevMouseX = currentX;
             prevMouseY = currentY;
@@ -632,9 +632,11 @@ window.onload = function init() {
 
     canvas.addEventListener("mousewheel", function(event){
         var delta = 0.1 * event.wheelDelta / 120;
+
         selectedObject.scale[0] += delta;
         selectedObject.scale[1] += delta;
         selectedObject.scale[2] += delta;
+
         if (selectedObject.scale[0] < 0) {
             selectedObject.scale[0] = 0;
         }
@@ -646,7 +648,7 @@ window.onload = function init() {
         }
 
         resetControls(selectedObject);
-        selectedObject.updateTransform();
+        updateSelectedObject();
 
         event.preventDefault();
 
@@ -732,7 +734,7 @@ window.onload = function init() {
     document.getElementById("scale_x").onchange = function (event) {
         var target = event.target || event.srcElement;
         var scale = target.value;
-        uiScale[0] = scale;
+        uiScale[0] = Number(scale);
         document.getElementById("scale_x_value").innerHTML = scale;
         updateSelectedObject();
     };
@@ -740,7 +742,7 @@ window.onload = function init() {
     document.getElementById("scale_y").onchange = function (event) {
         var target = event.target || event.srcElement;
         var scale = target.value;
-        uiScale[1] = scale;
+        uiScale[1] = Number(scale);
         document.getElementById("scale_y_value").innerHTML = scale;
         updateSelectedObject();
     };
@@ -748,7 +750,7 @@ window.onload = function init() {
     document.getElementById("scale_z").onchange = function (event) {
         var target = event.target || event.srcElement;
         var scale = target.value;
-        uiScale[2] = scale;
+        uiScale[2] = Number(scale);
         document.getElementById("scale_z_value").innerHTML = scale;
         updateSelectedObject();
     };
@@ -757,7 +759,7 @@ window.onload = function init() {
     document.getElementById("rotation_x").onchange = function (event) {
         var target = event.target || event.srcElement;
         var rotation = target.value;
-        uiRotation[0] = rotation;
+        uiRotation[0] = Number(rotation);
         document.getElementById("rotation_x_value").innerHTML = rotation;
         updateSelectedObject();
     };
@@ -765,7 +767,7 @@ window.onload = function init() {
     document.getElementById("rotation_y").onchange = function (event) {
         var target = event.target || event.srcElement;
         var rotation = target.value;
-        uiRotation[1] = rotation;
+        uiRotation[1] = Number(rotation);
         document.getElementById("rotation_y_value").innerHTML = rotation;
         updateSelectedObject();
     };
@@ -773,7 +775,7 @@ window.onload = function init() {
     document.getElementById("rotation_z").onchange = function (event) {
         var target = event.target || event.srcElement;
         var rotation = target.value;
-        uiRotation[2] = rotation;
+        uiRotation[2] = Number(rotation);
         document.getElementById("rotation_z_value").innerHTML = rotation;
         updateSelectedObject();
     };
@@ -944,14 +946,14 @@ function resetControls(selected) {
 //
     //scale
     uiScale = selected ? selected.scale : vec3(1, 1, 1);
-    document.getElementById("scale_x").value = selected ? selected.scale[0] : 1;
-    document.getElementById("scale_x_value").innerHTML = selected ? "" + selected.scale[0].toFixed(2) : "1";
+    document.getElementById("scale_x").value = selected ? Number(selected.scale[0]) : 1;
+    document.getElementById("scale_x_value").innerHTML = selected ? "" + Number(selected.scale[0]).toFixed(2) : "1";
 
-    document.getElementById("scale_y").value = selected ? selected.scale[1] : 1;
-    document.getElementById("scale_y_value").innerHTML = selected ? "" + selected.scale[1].toFixed(2)  : "1";
+    document.getElementById("scale_y").value = selected ? Number(selected.scale[1]) : 1;
+    document.getElementById("scale_y_value").innerHTML = selected ? "" + Number(selected.scale[1]).toFixed(2)  : "1";
 
-    document.getElementById("scale_z").value = selected ? selected.scale[2] : 1;
-    document.getElementById("scale_z_value").innerHTML = selected ? "" + selected.scale[2].toFixed(2)  : "1";
+    document.getElementById("scale_z").value = selected ? Number(selected.scale[2]) : 1;
+    document.getElementById("scale_z_value").innerHTML = selected ? "" + Number(selected.scale[2]).toFixed(2)  : "1";
 
     //rotation
     uiRotation = selected ? selected.rotation : vec3(0, 0, 0);
