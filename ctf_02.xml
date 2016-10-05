@@ -1,0 +1,24 @@
+<map>
+<layer name="settings">
+<map width="1440" height="640" gridSize="20" horizontalBorder="475" verticalBorder="315" />
+<gameDesign dashStaminaCost="1" staminaRecovery="0.25" chargeBurstTime="0" bulletCooldown="0.1" magazineReloadTime="0.5" dashCooldown="0.25" dashDuration="75" shootAccuracy="3" magazineCapacity="7" explosionRadius="15" fastTapInterval="0.2" medkitHealing="1" scoreForScore="0" scoreForKill="0" bulletDamage="0.1" bulletAreaDamage="0.05" matchTime="240" bulletSpeed="500" friendlyFire="false" botSightRadius="800" botThinkingIntervalMin="0.5" botThinkingIntervalMax="1" CTF="true" flagColliderRadius="60" flagDecayDuration="30" minSliceLength="40" corpseDecayTime="6" corpseFocusTime="0.5" dashSpeedWithFlag="35" flashRespawnDuration="5.0" flashDamagedDuration="0.3" flashInterval="0.1" shieldCooldown="10" rageCooldown="10" rageTime="10" rageSpeedMultiplier="1.5" />
+</layer>
+<layer name="Covers">
+<cover_attach x="281" y="99" width="85" height="85" angle="45" coverId="123" tag="1" spawnPoint="true" flagBase="1" teamId="1" id="2" parentNodeID="4" nodeID="2" />
+<cover_attach x="280" y="541" width="85" height="85" angle="45" coverId="123" tag="1" spawnPoint="true" flagBase="1" teamId="1" id="3" parentNodeID="4" nodeID="3" />
+<cover_attach x="1161" y="100" width="85" height="85" angle="45" coverId="123" tag="1" spawnPoint="true" flagBase="1" teamId="2" id="8" parentNodeID="7" nodeID="8" />
+<cover_attach x="1160" y="541" width="85" height="85" angle="45" coverId="123" tag="1" spawnPoint="true" flagBase="1" teamId="2" id="9" parentNodeID="7" nodeID="9" />
+<cover_attach x="63" y="319" width="85" height="85" angle="45" coverId="123" tag="1" spawnPoint="false" flagBase="true" teamId="1" id="1" parentNodeID="3" nodeID="1" />
+<cover_attach x="1380" y="321" width="85" height="85" angle="45" coverId="123" tag="1" spawnPoint="1" flagBase="true" teamId="2" id="10" parentNodeID="8" nodeID="10" />
+<wallOfDeath x="890" y="609" width="300" height="120" angle="-45" id="206" moveSpeed="100.0" skin="pump" />
+<cover_attach x="721" y="542" width="85" height="85" angle="45" coverId="123" tag="1" spawnPoint="1" flagBase="1" teamId="1" id="6" parentNodeID="7" nodeID="6" />
+<cover_attach x="720" y="101" width="85" height="85" angle="45" coverId="123" tag="1" spawnPoint="1" flagBase="1" teamId="1" id="5" parentNodeID="4" nodeID="5" />
+<catslinger_blue x="720" y="320" radius="20" deadTime="3" invulnerableTime="2" knifeCooldown="0.25" knifeDamage="0.25" />
+<wallOfDeath x="550" y="29" width="300" height="120" angle="-45" id="205" moveSpeed="100.0" skin="pump" />
+<wallOfDeath x="170" y="210" width="120" height="240" angle="-45" id="204" moveSpeed="100.0" skin="pump" />
+<wallOfDeath x="1270" y="430" width="120" height="240" angle="-45" id="207" moveSpeed="100.0" skin="pump" />
+<cover_attach x="499" y="322" width="85" height="85" angle="45" coverId="123" tag="1" spawnPoint="1" flagBase="1" teamId="1" id="4" parentNodeID="6" nodeID="4" />
+<cover_attach x="940" y="321" width="85" height="85" angle="45" coverId="123" tag="1" spawnPoint="1" flagBase="1" teamId="1" id="7" parentNodeID="5" nodeID="7" />
+<wallOfDeath x="721" y="321" width="140" height="140" angle="45" id="123" moveSpeed="100.0" skin="pump" />
+</layer>
+</map>
